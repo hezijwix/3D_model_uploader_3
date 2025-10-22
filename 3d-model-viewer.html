@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Model Viewer - Professional Renders</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap" rel="stylesheet">
+
+    <!-- Modular Stylesheets -->
+    <link rel="stylesheet" href="styles/variables.css">
+    <link rel="stylesheet" href="styles/base.css">
+    <link rel="stylesheet" href="styles/layout.css">
+    <link rel="stylesheet" href="styles/controls.css">
+    <link rel="stylesheet" href="styles/buttons.css">
+    <link rel="stylesheet" href="styles/modal.css">
+    <link rel="stylesheet" href="styles/utils.css">
+
+    <!-- Three.js Library and Loaders (r162+ for environment rotation support) -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+        import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+
+        // Expose THREE and loaders globally
+        window.THREE = THREE;
+        window.GLTFLoader = GLTFLoader;
+        window.FBXLoader = FBXLoader;
+        window.RGBELoader = RGBELoader;
+    </script>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="header-title">3D Model Viewer</div>
+        <div class="header-credit">MADE BY STUDIO-VIDEO</div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Side Panel -->
+        <div class="side-panel">
+            <div class="panel-header">
+                <h3>Controls</h3>
+            </div>
+
+            <!-- CANVAS SECTION -->
+            <div class="controls-section section-with-divider">
+                <h4>Canvas Size</h4>
+
+                <div class="frame-control-row">
+                    <label>Dimensions (px)</label>
+                </div>
+                <div class="size-inputs">
+                    <input type="number" id="canvas-width" value="1920" min="100" max="7680">
+                    <span style="color: var(--text-color-subtle);">×</span>
+                    <input type="number" id="canvas-height" value="1080" min="100" max="4320">
+                </div>
+
+                <div class="preset-buttons">
+                    <div class="preset-btn" data-size="800,600">HD</div>
+                    <div class="preset-btn active" data-size="1920,1080">FHD</div>
+                    <div class="preset-btn" data-size="1080,1080">1:1</div>
+                    <div class="preset-btn" data-size="1080,1920">9:16</div>
+                    <div class="preset-btn" data-size="3840,2160">4K</div>
+                </div>
+            </div>
+
+            <!-- MODEL UPLOAD SECTION -->
+            <div class="controls-section section-with-divider">
+                <h4>Model Upload</h4>
+
+                <div class="control-btn" id="model-upload-btn" style="width: 100%; text-align: center; position: relative;">
+                    <span id="model-upload-text">Upload 3D Model</span>
+                    <span class="remove-image" id="model-remove-btn" style="display: none;">&times;</span>
+                </div>
+                <input type="file" id="model-upload-input" accept=".glb,.gltf,.fbx" style="display: none;">
+
+                <div style="font-size: 11px; color: var(--text-color-subtle); margin-top: 8px; text-align: center;">
+                    Supports: GLB, GLTF, FBX
+                </div>
+            </div>
+
+            <!-- TRANSFORM CONTROLS SECTION -->
+            <div class="controls-section section-with-divider">
+                <h4>Transform</h4>
+
+                <!-- Scale -->
+                <div class="frame-control-row">
+                    <label for="model-scale">Scale</label>
+                    <span id="model-scale-value" style="color: var(--text-color-subtle);">1.0</span>
+                </div>
+                <input type="range" id="model-scale" min="0.1" max="5" step="0.1" value="1" class="slider">
+
+                <!-- Position X -->
+                <div class="frame-control-row" style="margin-top: 12px;">
+                    <label for="model-pos-x">Position X</label>
+                    <span id="model-pos-x-value" style="color: var(--text-color-subtle);">0.0</span>
+                </div>
+                <input type="range" id="model-pos-x" min="-5" max="5" step="0.1" value="0" class="slider">
+
+                <!-- Position Y -->
+                <div class="frame-control-row" style="margin-top: 12px;">
+                    <label for="model-pos-y">Position Y</label>
+                    <span id="model-pos-y-value" style="color: var(--text-color-subtle);">0.0</span>
+                </div>
+                <input type="range" id="model-pos-y" min="-5" max="5" step="0.1" value="0" class="slider">
+
+                <!-- Rotation X -->
+                <div class="frame-control-row" style="margin-top: 12px;">
+                    <label for="model-rot-x">Rotation X</label>
+                    <span id="model-rot-x-value" style="color: var(--text-color-subtle);">0°</span>
+                </div>
+                <input type="range" id="model-rot-x" min="0" max="360" step="1" value="0" class="slider">
+
+                <!-- Rotation Y -->
+                <div class="frame-control-row" style="margin-top: 12px;">
+                    <label for="model-rot-y">Rotation Y</label>
+                    <span id="model-rot-y-value" style="color: var(--text-color-subtle);">0°</span>
+                </div>
+                <input type="range" id="model-rot-y" min="0" max="360" step="1" value="0" class="slider">
+
+                <!-- Rotation Z -->
+                <div class="frame-control-row" style="margin-top: 12px;">
+                    <label for="model-rot-z">Rotation Z</label>
+                    <span id="model-rot-z-value" style="color: var(--text-color-subtle);">0°</span>
+                </div>
+                <input type="range" id="model-rot-z" min="0" max="360" step="1" value="0" class="slider">
+            </div>
+
+            <!-- HDRI LIGHTING SECTION -->
+            <div class="controls-section section-with-divider">
+                <h4>HDRI Lighting</h4>
+
+                <!-- HDRI Preset -->
+                <div class="frame-control-row">
+                    <label for="hdri-preset">Environment (2K Quality)</label>
+                </div>
+                <select id="hdri-preset">
+                    <option value="studio">Studio Loft Hall</option>
+                    <option value="sunset">Venice Sunset</option>
+                    <option value="outdoor">Outdoor Cloudy</option>
+                    <option value="warehouse">Industrial Sunset</option>
+                    <option value="night">Moonlit Golf</option>
+                    <option value="autumn">Autumn Crossing</option>
+                    <option value="urban">Urban Alley</option>
+                </select>
+
+                <!-- Show HDRI Background -->
+                <div style="margin-top: 16px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="hdri-show-bg" style="cursor: pointer;">
+                        <span>Show HDRI Background</span>
+                    </label>
+                    <div style="font-size: 11px; color: var(--text-color-subtle); margin-top: 4px; margin-left: 24px;">
+                        Display HDRI as background (lighting always active)
+                    </div>
+                </div>
+
+                <!-- HDRI Intensity -->
+                <div class="frame-control-row" style="margin-top: 16px;">
+                    <label for="hdri-intensity">Intensity</label>
+                    <span id="hdri-intensity-value" style="color: var(--text-color-subtle);">1.0</span>
+                </div>
+                <input type="range" id="hdri-intensity" min="0" max="3" step="0.1" value="1" class="slider">
+
+                <!-- HDRI Rotation -->
+                <div class="frame-control-row" style="margin-top: 12px;">
+                    <label for="hdri-rotation">Rotation</label>
+                    <span id="hdri-rotation-value" style="color: var(--text-color-subtle);">0°</span>
+                </div>
+                <input type="range" id="hdri-rotation" min="0" max="360" step="1" value="0" class="slider">
+
+                <div style="border-top: 1px solid var(--border-color); margin: 16px 0;"></div>
+
+                <!-- Sun Light -->
+                <div style="margin-top: 16px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="sun-enabled" checked style="cursor: pointer;">
+                        <span>Enable Sun Light</span>
+                    </label>
+                    <div style="font-size: 11px; color: var(--text-color-subtle); margin-top: 4px; margin-left: 24px;">
+                        Directional light from HDRI brightest point
+                    </div>
+                </div>
+
+                <!-- Sun Intensity -->
+                <div class="frame-control-row" style="margin-top: 16px;">
+                    <label for="sun-intensity">Sun Intensity</label>
+                    <span id="sun-intensity-value" style="color: var(--text-color-subtle);">2.0</span>
+                </div>
+                <input type="range" id="sun-intensity" min="0" max="5" step="0.1" value="2" class="slider">
+
+                <!-- Shadow Quality -->
+                <div class="frame-control-row" style="margin-top: 16px;">
+                    <label for="shadow-quality">Shadow Quality</label>
+                </div>
+                <select id="shadow-quality">
+                    <option value="1024">Low (1024×1024)</option>
+                    <option value="2048" selected>Medium (2048×2048)</option>
+                    <option value="4096">High (4096×4096)</option>
+                </select>
+                <div style="font-size: 11px; color: var(--text-color-subtle); margin-top: 4px;">
+                    Higher quality = sharper shadows, more GPU memory
+                </div>
+            </div>
+
+            <!-- ANIMATION SECTION -->
+            <div class="controls-section section-with-divider">
+                <h4>Animation</h4>
+
+                <!-- Turntable Toggle -->
+                <div style="margin-top: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="turntable-enabled" style="cursor: pointer;">
+                        <span>Enable Turntable</span>
+                    </label>
+                </div>
+
+                <!-- Turntable Speed -->
+                <div class="frame-control-row" style="margin-top: 16px;">
+                    <label for="turntable-speed">Speed</label>
+                    <span id="turntable-speed-value" style="color: var(--text-color-subtle);">1.0</span>
+                </div>
+                <input type="range" id="turntable-speed" min="0.1" max="3" step="0.1" value="1" class="slider">
+            </div>
+
+            <!-- BACKGROUND SECTION -->
+            <div class="controls-section section-with-divider">
+                <h4>Background</h4>
+
+                <!-- Background Color -->
+                <div class="frame-control-row">
+                    <label for="bg-color">Color:</label>
+                    <input type="color" id="bg-color" value="#1a1a1a" class="color-picker">
+                </div>
+
+                <!-- Transparent Mode -->
+                <div style="margin-top: 16px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="bg-transparent" style="cursor: pointer;">
+                        <span>Transparent Background</span>
+                    </label>
+                </div>
+
+                <!-- Background Image Upload -->
+                <div class="control-btn" id="bg-image-btn" style="width: 100%; text-align: center; margin-top: 16px; position: relative;">
+                    <span id="bg-image-text">Upload Background Image</span>
+                    <span class="remove-image" id="bg-image-remove-btn" style="display: none;">&times;</span>
+                </div>
+                <input type="file" id="bg-image-input" accept="image/*" style="display: none;">
+
+                <!-- Image Fit (hidden until image uploaded) -->
+                <div id="bg-fit-group" style="display: none; margin-top: 12px;">
+                    <div class="frame-control-row">
+                        <label for="bg-fit">Image Fit</label>
+                    </div>
+                    <select id="bg-fit">
+                        <option value="cover">Fill Frame</option>
+                        <option value="contain">Fit in Frame</option>
+                        <option value="fill">Stretch to Fill</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- EXPORT SECTION -->
+            <div class="controls-section">
+                <h4>Export</h4>
+                <div class="control-btn" id="export-btn" style="width: 100%; text-align: center;">
+                    Export Image
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Canvas Container -->
+        <div class="canvas-container">
+            <canvas id="three-canvas"></canvas>
+        </div>
+    </div>
+
+    <!-- Export Modal -->
+    <div id="export-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Export Options</h3>
+                <button class="modal-close" id="modal-close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <h4>Resolution</h4>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px;">
+                    <div class="control-btn export-resolution-btn" data-scale="1" style="text-align: center;">
+                        1× (1920×1080)<br><span style="font-size: 11px; opacity: 0.7;">Full HD</span>
+                    </div>
+                    <div class="control-btn export-resolution-btn" data-scale="2" style="text-align: center;">
+                        2× (3840×2160)<br><span style="font-size: 11px; opacity: 0.7;">4K</span>
+                    </div>
+                    <div class="control-btn export-resolution-btn" data-scale="4" style="text-align: center;">
+                        4× (7680×4320)<br><span style="font-size: 11px; opacity: 0.7;">8K</span>
+                    </div>
+                </div>
+
+                <div id="export-preview-container" style="margin-top: 16px; text-align: center; display: none;">
+                    <canvas id="export-preview-canvas" style="max-width: 100%; border: 1px solid var(--border-color);"></canvas>
+                    <div style="margin-top: 16px;">
+                        <button class="control-btn" id="download-export-btn" style="padding: 12px 24px;">
+                            Download PNG
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Configuration -->
+    <script src="js/3d-config.js"></script>
+
+    <!-- Core Viewer Logic -->
+    <script src="js/3d-viewer.js"></script>
+
+    <!-- UI Controllers -->
+    <script src="js/3d-ui.js"></script>
+</body>
+</html>
