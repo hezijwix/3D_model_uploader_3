@@ -19,6 +19,9 @@
     <link rel="stylesheet" href="styles/modal.css">
     <link rel="stylesheet" href="styles/utils.css">
 
+    <!-- Dependencies for export functionality -->
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
     <!-- Three.js Library and Loaders (r162+ for environment rotation support) -->
     <script type="importmap">
         {
@@ -292,34 +295,39 @@
     </div>
 
     <!-- Export Modal -->
-    <div id="export-modal" class="modal" style="display: none;">
+    <div class="modal-overlay" id="exportModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Export Options</h3>
-                <button class="modal-close" id="modal-close-btn">&times;</button>
+                <h3>Export</h3>
+                <button class="modal-close" id="closeExportModal">&times;</button>
             </div>
+
             <div class="modal-body">
-                <h4>Resolution</h4>
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px;">
-                    <div class="control-btn export-resolution-btn" data-scale="1" style="text-align: center;">
-                        1× (1920×1080)<br><span style="font-size: 11px; opacity: 0.7;">Full HD</span>
-                    </div>
-                    <div class="control-btn export-resolution-btn" data-scale="2" style="text-align: center;">
-                        2× (3840×2160)<br><span style="font-size: 11px; opacity: 0.7;">4K</span>
-                    </div>
-                    <div class="control-btn export-resolution-btn" data-scale="4" style="text-align: center;">
-                        4× (7680×4320)<br><span style="font-size: 11px; opacity: 0.7;">8K</span>
-                    </div>
+                <div class="modal-section">
+                    <label for="exportDuration" class="modal-label">Duration (seconds)</label>
+                    <input type="number" id="exportDuration" class="modal-input" min="1" max="60" value="5">
+                    <span class="modal-hint">For video and sequence exports</span>
                 </div>
 
-                <div id="export-preview-container" style="margin-top: 16px; text-align: center; display: none;">
-                    <canvas id="export-preview-canvas" style="max-width: 100%; border: 1px solid var(--border-color);"></canvas>
-                    <div style="margin-top: 16px;">
-                        <button class="control-btn" id="download-export-btn" style="padding: 12px 24px;">
-                            Download PNG
-                        </button>
-                    </div>
+                <div class="modal-section">
+                    <label for="exportFormat" class="modal-label">Format</label>
+                    <select id="exportFormat" class="modal-select">
+                        <option value="png">PNG Image</option>
+                        <option value="mp4">MP4 Video</option>
+                        <option value="png-sequence">PNG Sequence</option>
+                        <option value="iframe">iframe Embed Code</option>
+                    </select>
                 </div>
+
+                <div class="modal-section">
+                    <label class="modal-label">Export Size: <span id="exportSizeDisplay">1920 × 1080</span></label>
+                    <span class="modal-hint">Exports at canvas size with current view settings</span>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="modal-btn modal-btn-secondary" id="cancelExport">Cancel</button>
+                <button class="modal-btn modal-btn-primary" id="startExport">Start Export</button>
             </div>
         </div>
     </div>

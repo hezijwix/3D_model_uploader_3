@@ -361,26 +361,33 @@ window.addEventListener('DOMContentLoaded', () => {
     // ========== EXPORT CONTROLS ==========
 
     const exportBtn = document.getElementById('export-btn');
-    const exportModal = document.getElementById('export-modal');
-    const modalCloseBtn = document.getElementById('modal-close-btn');
-    const exportPreviewContainer = document.getElementById('export-preview-container');
-    const exportPreviewCanvas = document.getElementById('export-preview-canvas');
-    const downloadExportBtn = document.getElementById('download-export-btn');
+    const exportModal = document.getElementById('exportModal');
+    const closeExportModal = document.getElementById('closeExportModal');
+    const cancelExport = document.getElementById('cancelExport');
+    const startExport = document.getElementById('startExport');
+    const exportSizeDisplay = document.getElementById('exportSizeDisplay');
 
-    let currentExportScale = 1;
-    let exportDataURL = null;
-
+    // Open export modal
     if (exportBtn && exportModal) {
         exportBtn.addEventListener('click', () => {
             exportModal.style.display = 'flex';
-            exportPreviewContainer.style.display = 'none';
+            // Update canvas size display
+            if (exportSizeDisplay && window.viewer) {
+                exportSizeDisplay.textContent = `${window.viewer.canvas.width} × ${window.viewer.canvas.height}`;
+            }
         });
     }
 
-    if (modalCloseBtn) {
-        modalCloseBtn.addEventListener('click', () => {
+    // Close modal handlers
+    if (closeExportModal) {
+        closeExportModal.addEventListener('click', () => {
             exportModal.style.display = 'none';
-            exportPreviewContainer.style.display = 'none';
+        });
+    }
+
+    if (cancelExport) {
+        cancelExport.addEventListener('click', () => {
+            exportModal.style.display = 'none';
         });
     }
 
@@ -389,47 +396,31 @@ window.addEventListener('DOMContentLoaded', () => {
         exportModal.addEventListener('click', (e) => {
             if (e.target === exportModal) {
                 exportModal.style.display = 'none';
-                exportPreviewContainer.style.display = 'none';
             }
         });
     }
 
-    // Export resolution buttons
-    const resolutionBtns = document.querySelectorAll('.export-resolution-btn');
-    resolutionBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
+    // Start export handler
+    if (startExport) {
+        startExport.addEventListener('click', () => {
             if (!window.viewer) return;
 
-            const scale = parseInt(btn.dataset.scale);
-            currentExportScale = scale;
+            const format = document.getElementById('exportFormat')?.value || 'png';
+            const duration = parseInt(document.getElementById('exportDuration')?.value) || 5;
 
-            console.log(`📸 Exporting at ${scale}× resolution...`);
+            // Close modal
+            exportModal.style.display = 'none';
 
-            // Render high resolution
-            window.viewer.renderHighResolution(exportPreviewCanvas, scale);
-
-            // Convert to data URL
-            exportDataURL = exportPreviewCanvas.toDataURL('image/png', 1.0);
-
-            // Show preview
-            exportPreviewContainer.style.display = 'block';
-
-            console.log('✅ Export preview ready');
-        });
-    });
-
-    // Download button
-    if (downloadExportBtn) {
-        downloadExportBtn.addEventListener('click', () => {
-            if (!exportDataURL) return;
-
-            const link = document.createElement('a');
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-            link.download = `3d-render-${currentExportScale}x-${timestamp}.png`;
-            link.href = exportDataURL;
-            link.click();
-
-            console.log(`✅ Image downloaded (${currentExportScale}×)`);
+            // Route to appropriate export method
+            if (format === 'png') {
+                window.viewer.exportPNG();
+            } else if (format === 'mp4') {
+                window.viewer.exportMP4(duration);
+            } else if (format === 'png-sequence') {
+                window.viewer.exportPNGSequence(duration);
+            } else if (format === 'iframe') {
+                window.viewer.exportIframe();
+            }
         });
     }
 

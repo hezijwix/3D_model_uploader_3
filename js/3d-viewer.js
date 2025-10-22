@@ -47,6 +47,9 @@ class ModelViewer {
         this.turntableSpeed = ViewerConfig.animation.turntableSpeed;
         this.animationFrameId = null;
 
+        // Export state
+        this.isRecording = false;
+
         // Debounce timer for HDRI rotation
         this.hdriRotationTimer = null;
 
@@ -805,44 +808,548 @@ class ModelViewer {
 
     // ========== EXPORT ==========
 
-    renderHighResolution(targetCanvas, scale) {
-        console.log(`📸 Rendering high-resolution export (${scale}×)...`);
+    exportPNG() {
+        console.log('📸 Exporting PNG...');
 
-        const originalWidth = this.canvas.width;
-        const originalHeight = this.canvas.height;
-        const scaledWidth = originalWidth * scale;
-        const scaledHeight = originalHeight * scale;
+        // Create temporary canvas for composite
+        const exportCanvas = document.createElement('canvas');
+        exportCanvas.width = this.canvas.width;
+        exportCanvas.height = this.canvas.height;
+        const ctx = exportCanvas.getContext('2d');
 
-        // Setup target canvas
-        const ctx = targetCanvas.getContext('2d');
-        targetCanvas.width = scaledWidth;
-        targetCanvas.height = scaledHeight;
-        ctx.save();
-        ctx.scale(scale, scale);
+        // Render background and Three.js scene
+        this.renderToCanvas(exportCanvas);
 
-        // STEP 1: Draw background FIRST
-        if (!this.hdriBackgroundVisible) {
-            if (this.backgroundImage) {
-                this.renderBackgroundImage();
-            } else {
-                this.renderBackgroundLayer();
+        // Convert to PNG and download
+        const dataURL = exportCanvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.download = `3d-render-${Date.now()}.png`;
+        link.href = dataURL;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        console.log('✅ PNG export completed');
+    }
+
+    async exportMP4(duration) {
+        console.log(`🎥 Exporting MP4 video (${duration}s)...`);
+
+        const exportBtn = document.getElementById('export-btn');
+        const originalText = exportBtn.textContent;
+
+        try {
+            exportBtn.textContent = 'Recording...';
+            exportBtn.disabled = true;
+
+            // Create offscreen composite canvas for recording
+            const compositeCanvas = document.createElement('canvas');
+            compositeCanvas.width = this.canvas.width;
+            compositeCanvas.height = this.canvas.height;
+            const compositeCtx = compositeCanvas.getContext('2d');
+
+            // Set flag to enable compositing
+            this.isRecording = true;
+            this.recordingCanvas = compositeCanvas;
+            this.recordingCtx = compositeCtx;
+
+            // Start animation loop to update composite canvas
+            const updateComposite = () => {
+                if (!this.isRecording) return;
+
+                // Render background
+                if (!this.hdriBackgroundVisible) {
+                    const bgTransparent = document.getElementById('bg-transparent');
+                    const isTransparent = bgTransparent && bgTransparent.checked;
+
+                    compositeCtx.clearRect(0, 0, compositeCanvas.width, compositeCanvas.height);
+
+                    if (!isTransparent) {
+                        if (this.backgroundImage) {
+                            const bgFit = document.getElementById('bg-fit')?.value || 'cover';
+                            this.drawScaledBackgroundImage(compositeCtx, compositeCanvas.width, compositeCanvas.height, bgFit);
+                        } else {
+                            const bgColor = document.getElementById('bg-color')?.value || '#1a1a1a';
+                            compositeCtx.fillStyle = bgColor;
+                            compositeCtx.fillRect(0, 0, compositeCanvas.width, compositeCanvas.height);
+                        }
+                    }
+                }
+
+                // Composite Three.js canvas on top
+                compositeCtx.drawImage(this.canvas, 0, 0);
+
+                requestAnimationFrame(updateComposite);
+            };
+            updateComposite();
+
+            // Capture composite canvas stream
+            const stream = compositeCanvas.captureStream(30); // 30 FPS
+
+            // Detect supported video format
+            const formats = [
+                { mimeType: 'video/mp4; codecs="avc1.42E01E"', extension: 'mp4' }, // H.264 baseline
+                { mimeType: 'video/mp4; codecs="avc1.4D4028"', extension: 'mp4' }, // H.264 main
+                { mimeType: 'video/mp4; codecs="avc1.640028"', extension: 'mp4' }, // H.264 high
+                { mimeType: 'video/mp4', extension: 'mp4' },
+                { mimeType: 'video/webm; codecs="vp9,opus"', extension: 'webm' },
+                { mimeType: 'video/webm; codecs="vp8,opus"', extension: 'webm' },
+                { mimeType: 'video/webm', extension: 'webm' }
+            ];
+
+            let selectedFormat = null;
+            for (const format of formats) {
+                if (MediaRecorder.isTypeSupported(format.mimeType)) {
+                    selectedFormat = format;
+                    console.log('Using format:', format.mimeType);
+                    break;
+                }
             }
-            ctx.drawImage(this.backgroundCanvas, 0, 0, originalWidth, originalHeight);
+
+            if (!selectedFormat) {
+                throw new Error('No supported video format found');
+            }
+
+            const options = {
+                mimeType: selectedFormat.mimeType
+            };
+
+            // Add bitrate for MP4
+            if (selectedFormat.extension === 'mp4') {
+                options.videoBitsPerSecond = 2500000; // 2.5 Mbps
+            }
+
+            const mediaRecorder = new MediaRecorder(stream, options);
+            const recordedChunks = [];
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    recordedChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                try {
+                    const blob = new Blob(recordedChunks, {
+                        type: selectedFormat.mimeType
+                    });
+
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    const timestamp = Date.now();
+                    const filename = `3d-animation-${timestamp}.${selectedFormat.extension}`;
+
+                    link.download = filename;
+                    link.href = url;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+
+                    setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+                    if (selectedFormat.extension === 'webm') {
+                        setTimeout(() => {
+                            alert(`Video saved as WebM format. Your browser doesn't support MP4 recording.\nFile: ${filename}`);
+                        }, 100);
+                    } else {
+                        setTimeout(() => {
+                            alert(`Video saved successfully!\nFile: ${filename}`);
+                        }, 100);
+                    }
+                } catch (error) {
+                    console.error('Error creating download:', error);
+                    alert('Error saving video file. Please try again.');
+                }
+
+                exportBtn.textContent = originalText;
+                exportBtn.disabled = false;
+                this.isRecording = false;
+                this.recordingCanvas = null;
+                this.recordingCtx = null;
+            };
+
+            mediaRecorder.onerror = (event) => {
+                console.error('MediaRecorder error:', event.error);
+                alert('Recording error occurred. Please try again.');
+                exportBtn.textContent = originalText;
+                exportBtn.disabled = false;
+                this.isRecording = false;
+                this.recordingCanvas = null;
+                this.recordingCtx = null;
+            };
+
+            // Start recording
+            mediaRecorder.start(200);
+
+            // Progress indicator
+            let countdown = duration;
+            const progressInterval = setInterval(() => {
+                countdown--;
+                exportBtn.textContent = `Recording... ${countdown}s`;
+                if (countdown <= 0) {
+                    clearInterval(progressInterval);
+                }
+            }, 1000);
+
+            // Stop recording after duration
+            setTimeout(() => {
+                clearInterval(progressInterval);
+                if (mediaRecorder && mediaRecorder.state === 'recording') {
+                    mediaRecorder.stop();
+                    stream.getTracks().forEach(track => track.stop());
+                }
+            }, duration * 1000);
+
+        } catch (error) {
+            console.error('Video export failed:', error);
+            alert(`Video export failed: ${error.message}\n\nTry using PNG Sequence export instead.`);
+            exportBtn.textContent = originalText;
+            exportBtn.disabled = false;
+            this.isRecording = false;
+            this.recordingCanvas = null;
+            this.recordingCtx = null;
+        }
+    }
+
+    async exportPNGSequence(duration) {
+        console.log(`📦 Exporting PNG sequence (${duration}s)...`);
+
+        const exportBtn = document.getElementById('export-btn');
+        const originalText = exportBtn.textContent;
+
+        try {
+            const frameRate = 30;
+            const totalFrames = Math.ceil(duration * frameRate);
+            const frames = [];
+
+            exportBtn.disabled = true;
+
+            // Create export canvas
+            const exportCanvas = document.createElement('canvas');
+            exportCanvas.width = this.canvas.width;
+            exportCanvas.height = this.canvas.height;
+
+            // Store original rotation state
+            const originalTurntableState = this.turntableEnabled;
+            const originalRotationY = this.modelContainer ? this.modelContainer.rotation.y : 0;
+            const shouldAnimate = duration > 0 && originalTurntableState;
+
+            // Pre-calculate all rotation values for smooth animation
+            const rotationValues = [];
+            if (shouldAnimate && this.modelContainer) {
+                const totalRotation = Math.PI * 2; // Full 360° rotation
+                for (let frame = 0; frame < totalFrames; frame++) {
+                    // Calculate precise rotation for this frame
+                    const progress = frame / (totalFrames - 1); // 0 to 1
+                    const rotation = originalRotationY + (progress * totalRotation);
+                    rotationValues.push(rotation);
+                }
+            }
+
+            for (let frame = 0; frame < totalFrames; frame++) {
+                exportBtn.textContent = `Frame ${frame + 1}/${totalFrames}`;
+
+                // Apply pre-calculated rotation for this specific frame
+                if (shouldAnimate && this.modelContainer && rotationValues[frame] !== undefined) {
+                    this.modelContainer.rotation.y = rotationValues[frame];
+                }
+
+                // Force Three.js to update the scene graph
+                if (this.modelContainer) {
+                    this.modelContainer.updateMatrixWorld(true);
+                }
+
+                // Render frame to canvas
+                this.renderToCanvas(exportCanvas);
+
+                // Capture frame as PNG
+                const dataURL = exportCanvas.toDataURL('image/png');
+                frames.push(dataURL);
+
+                // Small delay for processing
+                await new Promise(resolve => setTimeout(resolve, 16));
+            }
+
+            // Restore original rotation
+            if (this.modelContainer) {
+                this.modelContainer.rotation.y = originalRotationY;
+                this.modelContainer.updateMatrixWorld(true);
+            }
+
+            exportBtn.textContent = 'Creating ZIP...';
+
+            // Create ZIP archive
+            const zip = new JSZip();
+            const timestamp = Date.now();
+            const bgTransparent = document.getElementById('bg-transparent');
+            const isTransparent = bgTransparent && bgTransparent.checked;
+            const folderName = isTransparent ?
+                `3d-sequence-alpha-${timestamp}` :
+                `3d-sequence-${timestamp}`;
+            const folder = zip.folder(folderName);
+
+            // Add frames to ZIP
+            frames.forEach((frameData, index) => {
+                const frameNumber = String(index + 1).padStart(4, '0');
+                const fileName = `frame_${frameNumber}.png`;
+                const base64Data = frameData.split(',')[1];
+                folder.file(fileName, base64Data, { base64: true });
+            });
+
+            // Add README
+            const readmeContent = `PNG Sequence Export - 3D Model Viewer
+Generated: ${new Date().toISOString()}
+Frames: ${totalFrames}
+Duration: ${duration}s
+Frame Rate: ${frameRate}fps
+Alpha Channel: ${isTransparent ? 'Preserved' : 'Opaque'}
+Canvas Size: ${this.canvas.width} × ${this.canvas.height}px
+
+${isTransparent ?
+'This sequence contains PNG files with alpha transparency.' :
+'This sequence contains opaque PNG files.'}`;
+
+            folder.file('README.txt', readmeContent);
+
+            // Generate and download ZIP
+            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            const url = URL.createObjectURL(zipBlob);
+            const link = document.createElement('a');
+            link.download = `${folderName}.zip`;
+            link.href = url;
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+            setTimeout(() => {
+                const alphaInfo = isTransparent ? ' with alpha transparency' : '';
+                alert(`PNG sequence exported successfully!\n${totalFrames} frames${alphaInfo}\nFile: ${folderName}.zip`);
+            }, 100);
+
+        } catch (error) {
+            console.error('PNG sequence export failed:', error);
+            alert('PNG sequence export failed. Please try again.');
+        } finally {
+            exportBtn.textContent = originalText;
+            exportBtn.disabled = false;
+        }
+    }
+
+    exportIframe() {
+        console.log('📋 Generating iframe embed code...');
+
+        // Collect current settings
+        const settings = {
+            canvasWidth: this.canvas.width,
+            canvasHeight: this.canvas.height,
+            hdriPreset: document.getElementById('hdri-preset')?.value || 'studio',
+            hdriIntensity: this.hdriIntensity,
+            hdriRotation: this.hdriRotation,
+            hdriShowBg: this.hdriBackgroundVisible,
+            sunEnabled: this.sunEnabled,
+            sunIntensity: this.sunIntensity,
+            shadowQuality: this.shadowQuality,
+            bgColor: document.getElementById('bg-color')?.value || '#1a1a1a',
+            bgTransparent: document.getElementById('bg-transparent')?.checked || false,
+            turntableEnabled: this.turntableEnabled,
+            turntableSpeed: this.turntableSpeed,
+            modelScale: this.modelContainer ? this.modelContainer.scale.x : 1,
+            modelRotation: this.modelContainer ? {
+                x: this.modelContainer.rotation.x,
+                y: this.modelContainer.rotation.y,
+                z: this.modelContainer.rotation.z
+            } : { x: 0, y: 0, z: 0 }
+        };
+
+        // Generate iframe HTML
+        const iframeCode = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Model Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: ${settings.bgTransparent ? 'transparent' : settings.bgColor};
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100vh;
+        }
+    </style>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+    <canvas id="viewer-canvas"></canvas>
+    <script type="module">
+        import * as THREE from 'three';
+        import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+
+        const canvas = document.getElementById('viewer-canvas');
+        const renderer = new THREE.WebGLRenderer({
+            canvas: canvas,
+            antialias: true,
+            alpha: ${settings.bgTransparent}
+        });
+
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.0;
+        ${settings.sunEnabled ? 'renderer.shadowMap.enabled = true;\nrenderer.shadowMap.type = THREE.PCFSoftShadowMap;' : ''}
+
+        const scene = new THREE.Scene();
+        ${settings.hdriShowBg ? '' : 'scene.background = new THREE.Color("' + settings.bgColor + '");'}
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 5);
+
+        // Load HDRI
+        const rgbeLoader = new RGBELoader();
+        const hdriUrl = 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/2k/${settings.hdriPreset === 'studio' ? 'photo_studio_loft_hall_2k' : settings.hdriPreset === 'sunset' ? 'venice_sunset_2k' : settings.hdriPreset === 'outdoor' ? 'kloofendal_48d_partly_cloudy_puresky_2k' : settings.hdriPreset === 'warehouse' ? 'industrial_sunset_puresky_2k' : settings.hdriPreset === 'night' ? 'moonlit_golf_2k' : settings.hdriPreset === 'autumn' ? 'autumn_crossing_2k' : 'urban_alley_01_2k'}.hdr';
+
+        rgbeLoader.load(hdriUrl, (texture) => {
+            const pmremGenerator = new THREE.PMREMGenerator(renderer);
+            const envMap = pmremGenerator.fromEquirectangular(texture).texture;
+            scene.environment = envMap;
+            ${settings.hdriShowBg ? 'scene.background = envMap;' : ''}
+            scene.environmentIntensity = ${settings.hdriIntensity};
+            scene.environmentRotation.y = ${settings.hdriRotation * Math.PI / 180};
+            texture.dispose();
+            pmremGenerator.dispose();
+        });
+
+        ${settings.sunEnabled ? `
+        // Sun light
+        const sunLight = new THREE.DirectionalLight(0xffffff, ${settings.sunIntensity});
+        sunLight.position.set(5, 10, 5);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = ${settings.shadowQuality};
+        sunLight.shadow.mapSize.height = ${settings.shadowQuality};
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 50;
+        sunLight.shadow.camera.left = -10;
+        sunLight.shadow.camera.right = 10;
+        sunLight.shadow.camera.top = 10;
+        sunLight.shadow.camera.bottom = -10;
+        scene.add(sunLight);
+        ` : ''}
+
+        // NOTE: Model loading code would go here
+        // You would need to either:
+        // 1. Embed the GLB/GLTF data as base64
+        // 2. Reference an external model URL
+        // 3. Provide instructions for the user to add their model
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            ${settings.turntableEnabled ? 'if (scene.children.length > 0) { scene.rotation.y += 0.01 * ' + settings.turntableSpeed + '; }' : ''}
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Handle resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>`;
+
+        // Copy to clipboard
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(iframeCode).then(() => {
+                alert('iframe embed code copied to clipboard!\n\nNote: You will need to add model loading code to display your 3D model.');
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                prompt('Copy this iframe code:', iframeCode);
+            });
+        } else {
+            prompt('Copy this iframe code:', iframeCode);
         }
 
-        ctx.restore();
+        console.log('✅ iframe code generated');
+    }
 
-        // STEP 2: Render Three.js at high resolution
-        this.renderer.setSize(scaledWidth, scaledHeight, false);
+    // Helper method to render current view to a canvas
+    renderToCanvas(targetCanvas) {
+        const ctx = targetCanvas.getContext('2d');
+        const width = targetCanvas.width;
+        const height = targetCanvas.height;
+
+        // Clear canvas
+        ctx.clearRect(0, 0, width, height);
+
+        // Render background (if not showing HDRI background)
+        if (!this.hdriBackgroundVisible) {
+            const bgTransparent = document.getElementById('bg-transparent');
+            const isTransparent = bgTransparent && bgTransparent.checked;
+
+            if (!isTransparent) {
+                if (this.backgroundImage) {
+                    const bgFit = document.getElementById('bg-fit')?.value || 'cover';
+                    this.drawScaledBackgroundImage(ctx, width, height, bgFit);
+                } else {
+                    const bgColor = document.getElementById('bg-color')?.value || '#1a1a1a';
+                    ctx.fillStyle = bgColor;
+                    ctx.fillRect(0, 0, width, height);
+                }
+            }
+        }
+
+        // Render Three.js scene
         this.renderer.render(this.scene, this.camera);
 
-        // STEP 3: Composite Three.js on top
-        ctx.drawImage(this.canvas, 0, 0, scaledWidth, scaledHeight);
+        // Composite Three.js canvas
+        ctx.drawImage(this.canvas, 0, 0, width, height);
+    }
 
-        // Restore original size
-        this.renderer.setSize(originalWidth, originalHeight, false);
+    // Helper method to draw scaled background image with proper fit modes
+    drawScaledBackgroundImage(ctx, width, height, fit) {
+        if (!this.backgroundImage) return;
 
-        console.log(`✅ Export completed (${scaledWidth}×${scaledHeight})`);
+        const imgAspect = this.backgroundImage.width / this.backgroundImage.height;
+        const canvasAspect = width / height;
+
+        let drawX = 0, drawY = 0, drawWidth = width, drawHeight = height;
+
+        if (fit === 'cover') {
+            if (imgAspect > canvasAspect) {
+                drawWidth = height * imgAspect;
+                drawX = (width - drawWidth) / 2;
+            } else {
+                drawHeight = width / imgAspect;
+                drawY = (height - drawHeight) / 2;
+            }
+        } else if (fit === 'contain') {
+            if (imgAspect > canvasAspect) {
+                drawHeight = width / imgAspect;
+                drawY = (height - drawHeight) / 2;
+            } else {
+                drawWidth = height * imgAspect;
+                drawX = (width - drawWidth) / 2;
+            }
+        }
+
+        ctx.drawImage(this.backgroundImage, drawX, drawY, drawWidth, drawHeight);
     }
 
     // ========== CLEANUP ==========
