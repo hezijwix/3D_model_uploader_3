@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SV Tools - Modular Animation Framework</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap" rel="stylesheet">
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/animations.css">
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="header-title">SV Tools - Animation Framework</div>
+        <div class="header-credit">MADE BY STUDIO-VIDEO</div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Side Panel -->
+        <div class="side-panel">
+            <div class="panel-header">
+                <h3>Controls</h3>
+            </div>
+            
+            <!-- CANVAS SECTION -->
+            <div class="controls-section section-with-divider">
+                <h4>Canvas Size</h4>
+                
+                <div class="frame-control-row">
+                    <label>Dimensions (px)</label>
+                </div>
+                <div class="size-inputs">
+                    <input type="number" id="canvas-width" value="800" min="100" max="5000">
+                    <span style="color: var(--text-color-subtle);">×</span>
+                    <input type="number" id="canvas-height" value="600" min="100" max="5000">
+                </div>
+                
+                <div class="preset-buttons">
+                    <div class="preset-btn" data-size="800,600">HD</div>
+                    <div class="preset-btn" data-size="1920,1080">FHD</div>
+                    <div class="preset-btn" data-size="1080,1080">1:1</div>
+                    <div class="preset-btn" data-size="1080,1920">9:16</div>
+                    <div class="preset-btn" data-size="3840,2160">4K</div>
+                    <div class="preset-btn" data-size="1200,800">Custom</div>
+                </div>
+            </div>
+
+            <!-- BACKGROUND SECTION -->
+            <div class="controls-section section-with-divider">
+                <h4>Background</h4>
+                
+                <div class="frame-control-row">
+                    <label for="bg-color">Color:</label>
+                    <input type="color" id="bg-color" value="#ffffff" class="color-picker">
+                </div>
+                
+                <div class="frame-control-row" style="margin-top: 12px;">
+                    <label>Mode</label>
+                </div>
+                <select id="bg-transparency">
+                    <option value="opaque">Opaque</option>
+                    <option value="transparent">Transparent</option>
+                </select>
+                
+                <!-- Background & Foreground Image Upload -->
+                <div style="display: flex; gap: 8px; margin-top: 16px;">
+                    <div class="control-btn image-upload-btn" id="bg-upload-btn" style="flex: 1; text-align: center; position: relative;">
+                        <span class="upload-text">Upload BG</span>
+                        <span class="remove-image" id="bg-remove-btn" style="display: none;">&times;</span>
+                    </div>
+                    <div class="control-btn image-upload-btn" id="fg-upload-btn" style="flex: 1; text-align: center; position: relative;">
+                        <span class="upload-text">Upload FG</span>
+                        <span class="remove-image" id="fg-remove-btn" style="display: none;">&times;</span>
+                    </div>
+                </div>
+                <input type="file" id="bg-image-input" accept="image/*" style="display: none;">
+                <input type="file" id="fg-image-input" accept="image/*" style="display: none;">
+            </div>
+
+            <!-- Animation controls will be dynamically inserted here by main.js -->
+
+            <!-- EXPORT SECTION -->
+            <div class="controls-section section-with-divider">
+                <h4>Export</h4>
+                <div class="control-btn" id="export-btn" style="width: 100%; text-align: center;">
+                    Export
+                </div>
+            </div>
+        </div>
+
+        <!-- Content Area -->
+        <div class="content-area">
+            <div class="canvas-wrapper" id="canvas-wrapper">
+                <div class="canvas-info" id="canvas-info">800 × 600 px</div>
+                <canvas id="main-canvas"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Modal -->
+    <div class="modal-overlay" id="exportModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Export</h3>
+                <button class="modal-close" id="closeExportModal">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="modal-section">
+                    <label for="exportDuration" class="modal-label">Duration (seconds)</label>
+                    <input type="number" id="exportDuration" class="modal-input" min="1" max="60" value="5">
+                    <span class="modal-hint">For video export</span>
+                </div>
+                
+                <div class="modal-section">
+                    <label for="exportFormat" class="modal-label">Format</label>
+                    <select id="exportFormat" class="modal-select">
+                        <option value="png">PNG Image</option>
+                        <option value="mp4">MP4 Video</option>
+                        <option value="png-sequence">PNG Sequence</option>
+                    </select>
+                </div>
+                
+                <div class="modal-section">
+                    <label class="modal-label">Export Size: <span id="exportSizeDisplay">800 × 600</span></label>
+                    <span class="modal-hint">Exports at frame size, not preview zoom</span>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button class="modal-btn modal-btn-secondary" id="cancelExport">Cancel</button>
+                <button class="modal-btn modal-btn-primary" id="startExport">Start Export</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    
+    <!-- Main JavaScript Module -->
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
