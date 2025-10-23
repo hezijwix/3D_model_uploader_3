@@ -9,19 +9,20 @@ A professional 3D model viewer tool that enables users to upload 3D models (GLB,
 ## Key Features
 
 - **Professional HDRI Lighting**: Image-Based Lighting (IBL) with 7 curated 2K HDR environments from Poly Haven
-- **Automatic Sun Extraction**: Cinema 4D/Redshift-style directional shadows from HDRI brightest point
-- **Dual-Canvas Architecture**: Accurate background colors independent of 3D rendering
+- **User-Controlled Sun Light**: Manual directional light with adjustable position, color, and shadow quality
+- **Single-Canvas Architecture**: Three.js handles all rendering with exact dimensions matching toolbar input (no pixel ratio multiplication)
 - **World-Space Transforms**: Intuitive rotation controls without gimbal lock
 - **Turntable Animation**: Product display with continuous rotation
-- **High-Resolution Export**: 1x (1920×1080), 2x (4K), 4x (8K) scaling options
-- **Flexible Backgrounds**: Solid colors, transparent, or custom images
+- **Custom Canvas Sizes**: Any dimension from 100×100 to 7680×4320 pixels with exact 1:1 pixel mapping
+- **Flexible Backgrounds**: Solid colors, transparent, HDRI environments, or custom images via scene.background
 
 ## Technical Stack
 
 - **Three.js r162+**: Core 3D rendering engine
 - **Loaders**: GLTFLoader, FBXLoader, RGBELoader
-- **Architecture**: Modular JavaScript with dual-canvas rendering
+- **Architecture**: Modular JavaScript with single-canvas rendering (Three.js only)
 - **Styling**: Custom CSS design system with dark theme
+- **Pixel Ratio**: Always 1:1 for exact dimension control (no devicePixelRatio multiplication)
 
 ## Development Guidelines
 
@@ -75,12 +76,13 @@ A professional 3D model viewer tool that enables users to upload 3D models (GLB,
 
 ### Common Pitfalls to Avoid
 
-1. **Canvas Initialization**: Set canvas dimensions BEFORE Three.js initialization
-2. **HDRI Rotation**: Use `scene.environmentRotation` (r162+), not texture rotation
-3. **Export Buffer**: Always set `preserveDrawingBuffer: true` in renderer
-4. **Material Environment**: Use `scene.environment`, not direct `material.envMap`
-5. **Background Colors**: Use dual-canvas to avoid tone mapping interference
-6. **World Rotations**: Build rotation matrices for gimbal-lock-free transforms
+1. **Canvas Dimensions**: Set canvas width/height to exact values, no pixel ratio multiplication
+2. **Pixel Ratio**: Always use `setPixelRatio(1)` for exact dimension control
+3. **HDRI Rotation**: Use `scene.environmentRotation` (r162+), not texture rotation
+4. **Export Buffer**: Always set `preserveDrawingBuffer: true` in renderer
+5. **Material Environment**: Use `scene.environment`, not direct `material.envMap`
+6. **Background Rendering**: Use `scene.background` for all background types (color, texture, HDRI)
+7. **World Rotations**: Build rotation matrices for gimbal-lock-free transforms
 
 ### Performance Optimization
 

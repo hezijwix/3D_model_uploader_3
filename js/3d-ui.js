@@ -82,6 +82,17 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ========== SHADER PRESET CONTROLS ==========
+
+    // Shader Preset
+    const shaderPreset = document.getElementById('shader-preset');
+    if (shaderPreset && window.viewer) {
+        shaderPreset.addEventListener('change', (e) => {
+            console.log(`🎨 Changing shader preset to: ${e.target.value}`);
+            window.viewer.applyShaderPreset(e.target.value);
+        });
+    }
+
     // ========== TRANSFORM CONTROLS ==========
 
     // Scale
@@ -245,6 +256,63 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Sun Azimuth (Horizontal Rotation)
+    const sunAzimuth = document.getElementById('sun-azimuth');
+    const sunAzimuthValue = document.getElementById('sun-azimuth-value');
+    if (sunAzimuth && window.viewer) {
+        sunAzimuth.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            sunAzimuthValue.textContent = value.toFixed(0) + '°';
+            window.viewer.sunAzimuth = value;
+            window.viewer.updateSunLightPosition();
+        });
+    }
+
+    // Sun Elevation (Vertical Angle)
+    const sunElevation = document.getElementById('sun-elevation');
+    const sunElevationValue = document.getElementById('sun-elevation-value');
+    if (sunElevation && window.viewer) {
+        sunElevation.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            sunElevationValue.textContent = value.toFixed(0) + '°';
+            window.viewer.sunElevation = value;
+            window.viewer.updateSunLightPosition();
+        });
+    }
+
+    // Sun Color
+    const sunColor = document.getElementById('sun-color');
+    if (sunColor && window.viewer) {
+        sunColor.addEventListener('input', (e) => {
+            window.viewer.sunColor = e.target.value;
+            window.viewer.updateSunLightPosition();
+        });
+    }
+
+    // Shadow Softness
+    const shadowSoftness = document.getElementById('shadow-softness');
+    const shadowSoftnessValue = document.getElementById('shadow-softness-value');
+    if (shadowSoftness && window.viewer) {
+        shadowSoftness.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            shadowSoftnessValue.textContent = value.toFixed(0);
+            window.viewer.shadowSoftness = value;
+            window.viewer.updateSunLightPosition();
+        });
+    }
+
+    // Shadow Intensity
+    const shadowIntensity = document.getElementById('shadow-intensity');
+    const shadowIntensityValue = document.getElementById('shadow-intensity-value');
+    if (shadowIntensity && window.viewer) {
+        shadowIntensity.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            shadowIntensityValue.textContent = value.toFixed(2);
+            window.viewer.shadowIntensity = value;
+            window.viewer.updateSunLightPosition();
+        });
+    }
+
     // Shadow Quality
     const shadowQuality = document.getElementById('shadow-quality');
     if (shadowQuality && window.viewer) {
@@ -265,24 +333,135 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ========== PATH TRACING CONTROLS ==========
+
+    // Path Tracing Toggle
+    const pathtracingEnabled = document.getElementById('pathtracing-enabled');
+    const pathtracingStats = document.getElementById('pathtracing-stats');
+    const pathtracingWarning = document.getElementById('pathtracing-warning');
+
+    // Track if path tracer library is loaded
+    let isPathtracerLoaded = !!window.WebGLPathTracer;
+
+    // Listen for path tracer ready event
+    window.addEventListener('pathtracerReady', () => {
+        isPathtracerLoaded = true;
+        console.log('🎨 Path tracer is now ready for use');
+    });
+
+    if (pathtracingEnabled && window.viewer) {
+        pathtracingEnabled.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                // Check if library is loaded
+                if (!isPathtracerLoaded && !window.WebGLPathTracer) {
+                    alert('Path tracing library is still loading. Please wait a moment and try again.\n\nCheck the browser console for loading progress.');
+                    e.target.checked = false;
+                    return;
+                }
+
+                const success = window.viewer.enablePathTracing();
+
+                if (success) {
+                    // Show stats panel
+                    if (pathtracingStats) pathtracingStats.style.display = 'block';
+                    if (pathtracingWarning) pathtracingWarning.style.display = 'none';
+                } else {
+                    // Failed to enable - show warning and uncheck
+                    e.target.checked = false;
+                    if (pathtracingWarning) pathtracingWarning.style.display = 'block';
+                    if (pathtracingStats) pathtracingStats.style.display = 'none';
+                }
+            } else {
+                window.viewer.disablePathTracing();
+                // Hide stats panel
+                if (pathtracingStats) pathtracingStats.style.display = 'none';
+            }
+        });
+    }
+
+    // Path Tracing Quality
+    const pathtracingQuality = document.getElementById('pathtracing-quality');
+    if (pathtracingQuality && window.viewer) {
+        pathtracingQuality.addEventListener('change', (e) => {
+            window.viewer.setPathTracingQuality(e.target.value);
+        });
+    }
+
+    // Path Tracing Reset Button
+    const pathtracingResetBtn = document.getElementById('pathtracing-reset-btn');
+    if (pathtracingResetBtn && window.viewer) {
+        pathtracingResetBtn.addEventListener('click', () => {
+            window.viewer.resetPathTracing();
+        });
+    }
+
     // ========== ANIMATION CONTROLS ==========
+
+    // Camera Orbit Toggle
+    const orbitEnabled = document.getElementById('orbit-enabled');
+    if (orbitEnabled && window.viewer) {
+        orbitEnabled.addEventListener('change', (e) => {
+            const enabled = e.target.checked;
+            window.viewer.orbitEnabled = enabled;
+
+            // Enable/disable OrbitControls
+            if (window.viewer.orbitControls) {
+                window.viewer.orbitControls.enabled = enabled;
+                console.log(`🎥 Camera orbit controls ${enabled ? 'enabled' : 'disabled'}`);
+            }
+
+            // If enabling orbit while path tracing is active, warn user
+            if (enabled && window.viewer.pathTracingEnabled) {
+                console.warn('⚠️ Camera movement will reset path tracing');
+                alert('Warning: Moving the camera will reset the path tracing render. Consider disabling path tracing or keeping the camera still.');
+            }
+        });
+    }
 
     // Turntable Toggle
     const turntableEnabled = document.getElementById('turntable-enabled');
     if (turntableEnabled && window.viewer) {
         turntableEnabled.addEventListener('change', (e) => {
             window.viewer.turntableEnabled = e.target.checked;
+
+            // If enabling turntable while path tracing is active, warn user
+            if (e.target.checked && window.viewer.pathTracingEnabled) {
+                console.warn('⚠️ Turntable animation will constantly reset path tracing');
+                alert('Warning: Turntable animation will constantly reset the path tracing render. Consider disabling path tracing for smooth animation.');
+            }
         });
     }
 
-    // Turntable Speed
-    const turntableSpeed = document.getElementById('turntable-speed');
-    const turntableSpeedValue = document.getElementById('turntable-speed-value');
-    if (turntableSpeed && window.viewer) {
-        turntableSpeed.addEventListener('input', (e) => {
+    // Turntable X-Axis Speed
+    const turntableSpeedX = document.getElementById('turntable-speed-x');
+    const turntableSpeedXValue = document.getElementById('turntable-speed-x-value');
+    if (turntableSpeedX && window.viewer) {
+        turntableSpeedX.addEventListener('input', (e) => {
             const value = parseFloat(e.target.value);
-            turntableSpeedValue.textContent = value.toFixed(1);
-            window.viewer.turntableSpeed = value;
+            turntableSpeedXValue.textContent = value.toFixed(1);
+            window.viewer.turntableSpeedX = value;
+        });
+    }
+
+    // Turntable Y-Axis Speed
+    const turntableSpeedY = document.getElementById('turntable-speed-y');
+    const turntableSpeedYValue = document.getElementById('turntable-speed-y-value');
+    if (turntableSpeedY && window.viewer) {
+        turntableSpeedY.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            turntableSpeedYValue.textContent = value.toFixed(1);
+            window.viewer.turntableSpeedY = value;
+        });
+    }
+
+    // Turntable Z-Axis Speed
+    const turntableSpeedZ = document.getElementById('turntable-speed-z');
+    const turntableSpeedZValue = document.getElementById('turntable-speed-z-value');
+    if (turntableSpeedZ && window.viewer) {
+        turntableSpeedZ.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            turntableSpeedZValue.textContent = value.toFixed(1);
+            window.viewer.turntableSpeedZ = value;
         });
     }
 
@@ -355,6 +534,49 @@ window.addEventListener('DOMContentLoaded', () => {
     if (bgFit && window.viewer) {
         bgFit.addEventListener('change', (e) => {
             window.viewer.setBackgroundImageFit(e.target.value);
+        });
+    }
+
+    // Foreground Image Upload
+    const fgImageBtn = document.getElementById('fg-image-btn');
+    const fgImageInput = document.getElementById('fg-image-input');
+    const fgImageRemoveBtn = document.getElementById('fg-image-remove-btn');
+    const fgImageText = document.getElementById('fg-image-text');
+
+    if (fgImageBtn && fgImageInput) {
+        fgImageBtn.addEventListener('click', (e) => {
+            if (e.target === fgImageRemoveBtn) return;
+            fgImageInput.click();
+        });
+
+        fgImageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file && window.viewer) {
+                const img = new Image();
+                img.onload = () => {
+                    window.viewer.setForegroundImage(img);
+                    fgImageText.textContent = file.name.length > 20
+                        ? file.name.substring(0, 20) + '...'
+                        : file.name;
+                    fgImageRemoveBtn.style.display = 'block';
+                    console.log('✅ Foreground image loaded');
+                };
+                img.onerror = () => {
+                    console.error('❌ Failed to load foreground image');
+                    alert('Failed to load foreground image. Please use a valid PNG file.');
+                };
+                img.src = URL.createObjectURL(file);
+            }
+        });
+
+        fgImageRemoveBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (window.viewer) {
+                window.viewer.clearForegroundImage();
+                fgImageInput.value = '';
+                fgImageText.textContent = 'Upload Foreground Image';
+                fgImageRemoveBtn.style.display = 'none';
+            }
         });
     }
 

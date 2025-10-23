@@ -20,12 +20,18 @@ class ModelViewer {
         // Model and transforms
         this.currentModel = null;
         this.modelContainer = null; // Container for transforms
+        this.currentShaderPreset = 'custom';
+        this.originalMaterials = new Map(); // Store original material properties
 
-        // Background rendering
-        this.backgroundCanvas = null;
-        this.backgroundCtx = null;
+        // Background rendering (removed separate canvas, now handled by Three.js scene.background)
         this.backgroundImage = null;
         this.backgroundImageFit = ViewerConfig.background.imageFit;
+        this.backgroundColor = ViewerConfig.background.color;
+
+        // Foreground rendering (PNG overlays)
+        this.foregroundCanvas = null;
+        this.foregroundCtx = null;
+        this.foregroundImage = null;
 
         // HDRI environment
         this.pmremGenerator = null;
@@ -35,16 +41,26 @@ class ModelViewer {
         this.hdriRotation = ViewerConfig.lighting.hdriRotation;
         this.hdriBackgroundVisible = ViewerConfig.lighting.hdriBackgroundVisible;
 
-        // Sun light system (HDRI + Sun rig like C4D/Redshift)
+        // Sun light system (User-controlled directional light)
         this.sunLight = null;
-        this.sunDirection = new THREE.Vector3(0, 1, 0); // Default: top-down
         this.sunIntensity = ViewerConfig.lighting.sunIntensity;
+        this.sunAzimuth = ViewerConfig.lighting.sunAzimuth;
+        this.sunElevation = ViewerConfig.lighting.sunElevation;
+        this.sunColor = ViewerConfig.lighting.sunColor;
         this.sunEnabled = ViewerConfig.lighting.sunEnabled;
         this.shadowQuality = ViewerConfig.lighting.shadowQuality;
+        this.shadowSoftness = ViewerConfig.lighting.shadowSoftness;
+        this.shadowIntensity = ViewerConfig.lighting.shadowIntensity;
+
+        // Camera controls
+        this.orbitControls = null;
+        this.orbitEnabled = ViewerConfig.animation.orbitEnabled;
 
         // Animation
         this.turntableEnabled = ViewerConfig.animation.turntableEnabled;
-        this.turntableSpeed = ViewerConfig.animation.turntableSpeed;
+        this.turntableSpeedX = ViewerConfig.animation.turntableSpeedX;
+        this.turntableSpeedY = ViewerConfig.animation.turntableSpeedY;
+        this.turntableSpeedZ = ViewerConfig.animation.turntableSpeedZ;
         this.animationFrameId = null;
 
         // Export state
@@ -59,6 +75,18 @@ class ModelViewer {
         this.rgbeLoader = null;
         this.textureLoader = null;
 
+        // Path Tracing
+        this.pathTracer = null;
+        this.pathTracingEnabled = false;
+        this.pathTracingQuality = 'medium';
+        this.targetSamples = 200;
+        this.pathTracingPresets = {
+            fast: { bounces: 5, minSamples: 3, targetSamples: 50 },
+            medium: { bounces: 10, minSamples: 5, targetSamples: 200 },
+            high: { bounces: 15, minSamples: 10, targetSamples: 1000 },
+            ultra: { bounces: 20, minSamples: 20, targetSamples: 5000 }
+        };
+
         // Initialize
         this.init();
     }
@@ -69,10 +97,10 @@ class ModelViewer {
         this.setupCanvasDimensions();
         this.setupScene();
         this.setupCamera();
+        this.setupOrbitControls();
         this.setupRenderer();
         this.setupLights();
         this.setupLoaders();
-        this.updateCanvasBackground(); // Initialize background rendering
         this.loadDefaultHDRI();
         this.animate();
 
@@ -82,31 +110,33 @@ class ModelViewer {
     // ========== INITIALIZATION ==========
 
     setupCanvasDimensions() {
-        // Set canvas to Full HD (1920x1080) for high-quality rendering
+        // Set canvas dimensions to match user input exactly (no pixel ratio multiplier)
         this.canvas.width = ViewerConfig.canvas.width;
         this.canvas.height = ViewerConfig.canvas.height;
         console.log(`Canvas dimensions: ${this.canvas.width}×${this.canvas.height}`);
     }
 
     resizeCanvas(width, height) {
-        // Update canvas dimensions
+        // Update canvas dimensions exactly as specified (no pixel ratio multiplier)
         this.canvas.width = width;
         this.canvas.height = height;
 
-        // Update background canvas
-        if (this.backgroundCanvas) {
-            this.backgroundCanvas.width = width;
-            this.backgroundCanvas.height = height;
+        // Update foreground canvas
+        if (this.foregroundCanvas) {
+            this.foregroundCanvas.width = width;
+            this.foregroundCanvas.height = height;
+            this.updateForegroundCanvas(); // Redraw foreground image at new size
         }
 
         // Update camera aspect ratio
         this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();
 
-        // Update renderer size
+        // Update renderer size (do NOT apply pixel ratio here - keep 1:1 mapping)
         this.renderer.setSize(width, height, false);
+        this.renderer.setPixelRatio(1); // Force 1:1 ratio for exact dimensions
 
-        // Redraw background
+        // Update background
         this.updateCanvasBackground();
 
         console.log(`Canvas resized: ${width}×${height}`);
@@ -114,7 +144,9 @@ class ModelViewer {
 
     setupScene() {
         this.scene = new THREE.Scene();
-        this.scene.background = null; // Always null - use separate background layer
+
+        // Initialize default background color
+        this.scene.background = new THREE.Color(this.backgroundColor);
 
         // Initialize rotation properties for HDRI (Three.js r162+)
         this.scene.environmentRotation = new THREE.Euler();
@@ -124,39 +156,29 @@ class ModelViewer {
         this.modelContainer = new THREE.Group();
         this.scene.add(this.modelContainer);
 
-        // Create background canvas layer
-        this.setupBackgroundCanvas();
+        // Create foreground canvas layer for PNG overlays
+        this.setupForegroundCanvas();
 
-        console.log('  ✓ Scene created with dual-canvas architecture');
+        console.log('  ✓ Scene created with single Three.js canvas + foreground overlay');
     }
 
-    setupBackgroundCanvas() {
-        // Create background canvas that sits behind Three.js canvas
-        this.backgroundCanvas = document.createElement('canvas');
-        this.backgroundCanvas.id = 'background-canvas';
-        this.backgroundCanvas.width = this.canvas.width;
-        this.backgroundCanvas.height = this.canvas.height;
-        this.backgroundCanvas.style.position = 'absolute';
-        this.backgroundCanvas.style.top = '50%';
-        this.backgroundCanvas.style.left = '50%';
-        this.backgroundCanvas.style.transform = 'translate(-50%, -50%)';
-        this.backgroundCanvas.style.maxWidth = '100%';
-        this.backgroundCanvas.style.maxHeight = '100%';
-        this.backgroundCanvas.style.width = 'auto';
-        this.backgroundCanvas.style.height = 'auto';
-        this.backgroundCanvas.style.zIndex = '1';
-        this.backgroundCanvas.style.pointerEvents = 'none';
-        this.backgroundCanvas.style.boxShadow = '0 0 30px rgba(0, 0, 0, 0.5)';
-        this.backgroundCanvas.style.borderRadius = '4px';
+    setupForegroundCanvas() {
+        // Use existing foreground canvas from HTML or create one
+        this.foregroundCanvas = document.getElementById('foreground-canvas');
+        if (!this.foregroundCanvas) {
+            this.foregroundCanvas = document.createElement('canvas');
+            this.foregroundCanvas.id = 'foreground-canvas';
+            const container = this.canvas.parentNode;
+            container.appendChild(this.foregroundCanvas);
+        }
 
-        this.backgroundCtx = this.backgroundCanvas.getContext('2d');
+        // Match dimensions to main canvas
+        this.foregroundCanvas.width = this.canvas.width;
+        this.foregroundCanvas.height = this.canvas.height;
 
-        // Insert background canvas into the container (not before the Three.js canvas)
-        const container = this.canvas.parentNode;
-        container.style.position = 'relative';
-        container.insertBefore(this.backgroundCanvas, this.canvas);
+        this.foregroundCtx = this.foregroundCanvas.getContext('2d');
 
-        console.log('  ✓ Background canvas layer created');
+        console.log('  ✓ Foreground canvas layer created');
     }
 
     setupCamera() {
@@ -178,16 +200,59 @@ class ModelViewer {
         console.log('  ✓ Camera initialized');
     }
 
+    setupOrbitControls() {
+        // Create OrbitControls for manual camera control
+        if (!window.OrbitControls) {
+            console.warn('⚠️ OrbitControls not available');
+            return;
+        }
+
+        this.orbitControls = new window.OrbitControls(this.camera, this.canvas);
+
+        // Configure controls
+        this.orbitControls.enableDamping = true; // Smooth camera movement
+        this.orbitControls.dampingFactor = 0.05;
+        this.orbitControls.enableZoom = true;
+        this.orbitControls.enablePan = true;
+        this.orbitControls.enableRotate = true;
+
+        // Set initial state based on config
+        this.orbitControls.enabled = this.orbitEnabled;
+
+        console.log('  ✓ Orbit controls initialized (disabled by default)');
+    }
+
     setupRenderer() {
+        // Try to get WebGL 2.0 context explicitly for path tracing support
+        let gl = null;
+        try {
+            gl = this.canvas.getContext('webgl2', {
+                antialias: ViewerConfig.renderer.antialias,
+                alpha: ViewerConfig.renderer.alpha,
+                preserveDrawingBuffer: ViewerConfig.renderer.preserveDrawingBuffer,
+                powerPreference: 'high-performance'
+            });
+        } catch (e) {
+            console.warn('⚠️ WebGL 2.0 context creation failed:', e);
+        }
+
+        if (gl) {
+            console.log('  ✓ WebGL 2.0 context created (path tracing available)');
+        } else {
+            console.warn('⚠️ WebGL 2.0 not supported, falling back to WebGL 1.0');
+            console.warn('  Path tracing features will not be available');
+        }
+
         this.renderer = new THREE.WebGLRenderer({
             canvas: this.canvas,
+            context: gl || undefined, // Use WebGL 2.0 if available, fallback to WebGL 1.0
             antialias: ViewerConfig.renderer.antialias,
             alpha: ViewerConfig.renderer.alpha,
             preserveDrawingBuffer: ViewerConfig.renderer.preserveDrawingBuffer
         });
 
         this.renderer.setSize(this.canvas.width, this.canvas.height, false);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, ViewerConfig.renderer.pixelRatioMax));
+        this.renderer.setPixelRatio(1); // Always 1:1 for exact dimensions matching toolbar input
 
         // Color management (r162+)
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -200,15 +265,16 @@ class ModelViewer {
             ViewerConfig.renderer.clearAlpha
         );
 
-        // Enable shadows
+        // Enable shadows with VSM for radius support
         this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.shadowMap.type = THREE.VSMShadowMap;
 
         // Setup PMREMGenerator for IBL
         this.pmremGenerator = new THREE.PMREMGenerator(this.renderer);
         this.pmremGenerator.compileEquirectangularShader();
 
         console.log('  ✓ Renderer initialized with IBL support');
+        console.log(`  ✓ WebGL Version: ${this.renderer.capabilities.isWebGL2 ? '2.0' : '1.0'}`);
     }
 
     setupLights() {
@@ -216,8 +282,9 @@ class ModelViewer {
         const ambientLight = new THREE.AmbientLight(0xffffff, ViewerConfig.lighting.ambientIntensity);
         this.scene.add(ambientLight);
 
-        // Sun light (HDRI-based directional light with shadows)
-        this.sunLight = new THREE.DirectionalLight(0xffffff, this.sunIntensity);
+        // Sun light (User-controlled directional light with shadows)
+        const sunColor = new THREE.Color(this.sunColor);
+        this.sunLight = new THREE.DirectionalLight(sunColor, this.sunIntensity);
         this.sunLight.castShadow = true;
 
         // Configure shadow camera
@@ -229,17 +296,21 @@ class ModelViewer {
         this.sunLight.shadow.camera.right = 10;
         this.sunLight.shadow.camera.top = 10;
         this.sunLight.shadow.camera.bottom = -10;
-        this.sunLight.shadow.bias = ViewerConfig.lighting.shadowBias;
-        this.sunLight.shadow.radius = ViewerConfig.lighting.shadowRadius;
 
-        // Initial position (will be updated when HDRI is analyzed)
-        this.sunLight.position.set(5, 10, 5);
-        this.sunLight.target.position.set(0, 0, 0);
+        // Shadow softness (VSM supports radius parameter)
+        this.sunLight.shadow.radius = this.shadowSoftness;
+        this.sunLight.shadow.blurSamples = 8; // Quality of blur for VSM
+
+        // Shadow intensity control via bias (affects darkness/prevents shadow acne)
+        this.sunLight.shadow.bias = -0.0001 * this.shadowIntensity;
+
+        // Initial position from azimuth and elevation
+        this.updateSunLightPosition();
 
         this.scene.add(this.sunLight);
         this.scene.add(this.sunLight.target);
 
-        console.log('  ✓ Lighting system initialized (sun + ambient)');
+        console.log('  ✓ Lighting system initialized (user-controlled sun + ambient)');
     }
 
     setupLoaders() {
@@ -278,29 +349,17 @@ class ModelViewer {
                 this.originalHDRITexture = texture.clone();
                 this.originalHDRITexture.mapping = THREE.EquirectangularReflectionMapping;
 
-                // Use calibrated sun position if available
-                if (ViewerConfig.hdriSunPositions[presetName]) {
-                    const calibratedData = ViewerConfig.hdriSunPositions[presetName];
-                    this.sunDirection = new THREE.Vector3(
-                        calibratedData.direction[0],
-                        calibratedData.direction[1],
-                        calibratedData.direction[2]
-                    ).normalize();
-                    console.log(`  ✓ Using calibrated sun position`);
-                } else {
-                    console.log(`  ⚠️ No calibration data, using automatic detection`);
-                    this.sunDirection = this.analyzeHDRIBrightestPoint(texture);
-                }
-
                 // Generate environment with current rotation
                 this.generateRotatedEnvironment(texture, this.hdriRotation * Math.PI / 180);
-
-                // Update sun light position
-                this.updateSunLightPosition();
 
                 // Apply to model if exists
                 if (this.currentModel) {
                     this.applyEnvironmentToModel();
+                }
+
+                // Reset path tracing if active (new environment)
+                if (this.pathTracingEnabled && this.pathTracer) {
+                    this.pathTracer.reset();
                 }
 
                 console.log(`✅ HDRI loaded: ${presetName}`);
@@ -460,8 +519,10 @@ class ModelViewer {
             }
         });
 
-        // Update sun light
-        this.updateSunLightPosition();
+        // Reset path tracing if active
+        if (this.pathTracingEnabled && this.pathTracer) {
+            this.pathTracer.reset();
+        }
 
         console.log('  ✓ HDRI settings updated');
     }
@@ -469,20 +530,34 @@ class ModelViewer {
     updateSunLightPosition() {
         if (!this.sunLight) return;
 
-        // Apply HDRI rotation to sun direction
-        const rotationRadians = this.hdriRotation * Math.PI / 180;
-        const rotatedDirection = this.sunDirection.clone();
-        rotatedDirection.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotationRadians);
+        // Calculate sun direction from azimuth and elevation (spherical coordinates)
+        const azimuthRad = this.sunAzimuth * Math.PI / 180;
+        const elevationRad = this.sunElevation * Math.PI / 180;
 
-        // Position sun light
+        // Convert spherical to Cartesian coordinates
+        const x = Math.cos(elevationRad) * Math.sin(azimuthRad);
+        const y = Math.sin(elevationRad);
+        const z = Math.cos(elevationRad) * Math.cos(azimuthRad);
+
+        // Position sun light at distance
         const distance = ViewerConfig.lighting.sunDistance;
-        this.sunLight.position.copy(rotatedDirection.multiplyScalar(distance));
+        this.sunLight.position.set(x * distance, y * distance, z * distance);
         this.sunLight.target.position.set(0, 0, 0);
         this.sunLight.target.updateMatrixWorld();
 
-        // Update intensity and visibility
+        // Update color, intensity, and visibility
+        this.sunLight.color.setStyle(this.sunColor);
         this.sunLight.intensity = this.sunIntensity;
         this.sunLight.visible = this.sunEnabled;
+
+        // Update shadow properties (VSM supports radius for blur)
+        this.sunLight.shadow.radius = this.shadowSoftness;
+        this.sunLight.shadow.bias = -0.0001 * this.shadowIntensity;
+
+        // Reset path tracing if active (lighting changed)
+        if (this.pathTracingEnabled && this.pathTracer) {
+            this.pathTracer.reset();
+        }
     }
 
     // ========== MODEL LOADING ==========
@@ -628,6 +703,74 @@ class ModelViewer {
         });
     }
 
+    applyShaderPreset(presetName) {
+        if (!this.currentModel) {
+            console.warn('⚠️ No model loaded to apply shader preset');
+            return;
+        }
+
+        const preset = ViewerConfig.shaderPresets[presetName];
+        if (!preset) {
+            console.error(`❌ Unknown shader preset: ${presetName}`);
+            return;
+        }
+
+        console.log(`🎨 Applying shader preset: ${presetName}`);
+        this.currentShaderPreset = presetName;
+
+        this.currentModel.traverse((child) => {
+            if (child.isMesh && child.material) {
+                const materials = Array.isArray(child.material) ? child.material : [child.material];
+
+                materials.forEach((mat, idx) => {
+                    // Store original properties on first preset application
+                    const matKey = `${child.uuid}_${idx}`;
+                    if (!this.originalMaterials.has(matKey)) {
+                        this.originalMaterials.set(matKey, {
+                            roughness: mat.roughness,
+                            metalness: mat.metalness,
+                            transmission: mat.transmission || 0,
+                            clearcoat: mat.clearcoat || 0
+                        });
+                    }
+
+                    // Apply preset or restore original
+                    if (presetName === 'custom') {
+                        // Restore original properties
+                        const original = this.originalMaterials.get(matKey);
+                        if (original) {
+                            mat.roughness = original.roughness;
+                            mat.metalness = original.metalness;
+                            mat.transmission = original.transmission;
+                            mat.clearcoat = original.clearcoat;
+                        }
+                    } else {
+                        // Apply preset properties (only if not null)
+                        if (preset.roughness !== null) mat.roughness = preset.roughness;
+                        if (preset.metalness !== null) mat.metalness = preset.metalness;
+                        if (preset.transmission !== null) mat.transmission = preset.transmission;
+                        if (preset.clearcoat !== null) mat.clearcoat = preset.clearcoat;
+
+                        // Enable transparency if using transmission
+                        if (preset.transmission > 0) {
+                            mat.transparent = true;
+                            mat.opacity = 1.0;
+                        }
+                    }
+
+                    mat.needsUpdate = true;
+                });
+            }
+        });
+
+        // Reset path tracing if active (material changed)
+        if (this.pathTracingEnabled && this.pathTracer) {
+            this.pathTracer.reset();
+        }
+
+        console.log(`  ✓ Shader preset applied: ${presetName}`);
+    }
+
     clearModel() {
         if (this.currentModel) {
             this.modelContainer.remove(this.currentModel);
@@ -647,6 +790,8 @@ class ModelViewer {
             });
 
             this.currentModel = null;
+            this.originalMaterials.clear(); // Clear stored original materials
+            this.currentShaderPreset = 'custom'; // Reset preset
         }
     }
 
@@ -673,96 +818,103 @@ class ModelViewer {
 
         rotMatrix.multiply(matY).multiply(matX).multiply(matZ);
         this.modelContainer.rotation.setFromRotationMatrix(rotMatrix);
+
+        // Update path tracer if active
+        if (this.pathTracingEnabled && this.pathTracer) {
+            // Update the scene matrices
+            this.scene.updateMatrixWorld(true);
+
+            // Reset to render with new transform
+            this.pathTracer.reset();
+        }
     }
 
     // ========== BACKGROUND ==========
 
     updateCanvasBackground() {
+        const transparent = document.getElementById('bg-transparent')?.checked || false;
+
         if (this.hdriBackgroundVisible && this.currentHDRI) {
             // Show HDRI in Three.js
             this.scene.background = this.currentHDRI;
-            this.renderer.setClearColor(0x000000, 1);
             this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
             this.renderer.toneMappingExposure = this.hdriIntensity;
-
-            this.clearBackgroundCanvas();
             console.log('  ✓ Background: HDRI');
-        } else {
-            // Transparent Three.js + background canvas
+        } else if (transparent) {
+            // Transparent background
             this.scene.background = null;
             this.renderer.setClearColor(0x000000, 0);
             this.renderer.toneMapping = THREE.NoToneMapping;
-            this.renderer.toneMappingExposure = 1.0;
-
-            this.renderBackgroundLayer();
-            console.log('  ✓ Background: Canvas layer');
-        }
-    }
-
-    clearBackgroundCanvas() {
-        if (this.backgroundCtx) {
-            this.backgroundCtx.clearRect(0, 0, this.backgroundCanvas.width, this.backgroundCanvas.height);
-        }
-    }
-
-    renderBackgroundLayer() {
-        if (!this.backgroundCtx) return;
-
-        const transparent = document.getElementById('bg-transparent')?.checked || false;
-
-        if (transparent) {
-            this.backgroundCtx.clearRect(0, 0, this.backgroundCanvas.width, this.backgroundCanvas.height);
+            console.log('  ✓ Background: Transparent');
         } else if (this.backgroundImage) {
-            this.renderBackgroundImage();
+            // Background image as texture
+            const texture = new THREE.CanvasTexture(this.createBackgroundImageCanvas());
+            texture.colorSpace = THREE.SRGBColorSpace;
+            this.scene.background = texture;
+            this.renderer.toneMapping = THREE.NoToneMapping;
+            console.log('  ✓ Background: Custom image');
         } else {
-            const bgColor = document.getElementById('bg-color')?.value || ViewerConfig.background.color;
-            this.backgroundCtx.fillStyle = bgColor;
-            this.backgroundCtx.fillRect(0, 0, this.backgroundCanvas.width, this.backgroundCanvas.height);
+            // Solid color background
+            const bgColor = document.getElementById('bg-color')?.value || this.backgroundColor;
+            this.scene.background = new THREE.Color(bgColor);
+            this.renderer.toneMapping = THREE.NoToneMapping;
+            console.log('  ✓ Background: Solid color', bgColor);
         }
     }
 
-    renderBackgroundImage() {
-        if (!this.backgroundImage) return;
+    createBackgroundImageCanvas() {
+        // Create a canvas with the background image rendered at the correct aspect ratio
+        const canvas = document.createElement('canvas');
+        canvas.width = this.canvas.width;
+        canvas.height = this.canvas.height;
+        const ctx = canvas.getContext('2d');
 
-        const canvasAspect = this.backgroundCanvas.width / this.backgroundCanvas.height;
+        const canvasAspect = canvas.width / canvas.height;
         const imageAspect = this.backgroundImage.width / this.backgroundImage.height;
 
         let drawWidth, drawHeight, offsetX, offsetY;
 
         if (this.backgroundImageFit === 'cover') {
             if (canvasAspect > imageAspect) {
-                drawWidth = this.backgroundCanvas.width;
+                drawWidth = canvas.width;
                 drawHeight = drawWidth / imageAspect;
                 offsetX = 0;
-                offsetY = (this.backgroundCanvas.height - drawHeight) / 2;
+                offsetY = (canvas.height - drawHeight) / 2;
             } else {
-                drawHeight = this.backgroundCanvas.height;
+                drawHeight = canvas.height;
                 drawWidth = drawHeight * imageAspect;
-                offsetX = (this.backgroundCanvas.width - drawWidth) / 2;
+                offsetX = (canvas.width - drawWidth) / 2;
                 offsetY = 0;
             }
         } else if (this.backgroundImageFit === 'contain') {
             if (canvasAspect > imageAspect) {
-                drawHeight = this.backgroundCanvas.height;
+                drawHeight = canvas.height;
                 drawWidth = drawHeight * imageAspect;
-                offsetX = (this.backgroundCanvas.width - drawWidth) / 2;
+                offsetX = (canvas.width - drawWidth) / 2;
                 offsetY = 0;
             } else {
-                drawWidth = this.backgroundCanvas.width;
+                drawWidth = canvas.width;
                 drawHeight = drawWidth / imageAspect;
                 offsetX = 0;
-                offsetY = (this.backgroundCanvas.height - drawHeight) / 2;
+                offsetY = (canvas.height - drawHeight) / 2;
             }
         } else {
             // fill
-            drawWidth = this.backgroundCanvas.width;
-            drawHeight = this.backgroundCanvas.height;
+            drawWidth = canvas.width;
+            drawHeight = canvas.height;
             offsetX = 0;
             offsetY = 0;
         }
 
-        this.backgroundCtx.clearRect(0, 0, this.backgroundCanvas.width, this.backgroundCanvas.height);
-        this.backgroundCtx.drawImage(this.backgroundImage, offsetX, offsetY, drawWidth, drawHeight);
+        // Fill background with solid color first (for contain mode)
+        const bgColor = document.getElementById('bg-color')?.value || this.backgroundColor;
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw image
+        ctx.drawImage(this.backgroundImage, offsetX, offsetY, drawWidth, drawHeight);
+
+        return canvas;
     }
 
     setBackgroundImage(image) {
@@ -780,30 +932,258 @@ class ModelViewer {
         this.updateCanvasBackground();
     }
 
+    setForegroundImage(image) {
+        this.foregroundImage = image;
+        this.updateForegroundCanvas();
+    }
+
+    clearForegroundImage() {
+        this.foregroundImage = null;
+        this.updateForegroundCanvas();
+    }
+
+    updateForegroundCanvas() {
+        if (!this.foregroundCtx) return;
+
+        // Clear foreground canvas
+        this.foregroundCtx.clearRect(0, 0, this.foregroundCanvas.width, this.foregroundCanvas.height);
+
+        // Draw foreground image if set (PNG with alpha transparency)
+        if (this.foregroundImage) {
+            // Always use 'cover' fit for foreground overlays
+            const canvasAspect = this.foregroundCanvas.width / this.foregroundCanvas.height;
+            const imageAspect = this.foregroundImage.width / this.foregroundImage.height;
+
+            let drawWidth, drawHeight, offsetX, offsetY;
+
+            // Cover: fill entire canvas, may crop image
+            if (imageAspect > canvasAspect) {
+                drawHeight = this.foregroundCanvas.height;
+                drawWidth = drawHeight * imageAspect;
+                offsetX = (this.foregroundCanvas.width - drawWidth) / 2;
+                offsetY = 0;
+            } else {
+                drawWidth = this.foregroundCanvas.width;
+                drawHeight = drawWidth / imageAspect;
+                offsetX = 0;
+                offsetY = (this.foregroundCanvas.height - drawHeight) / 2;
+            }
+
+            this.foregroundCtx.drawImage(
+                this.foregroundImage,
+                offsetX, offsetY,
+                drawWidth, drawHeight
+            );
+        }
+    }
+
+    // ========== PATH TRACING ==========
+
+    enablePathTracing() {
+        // Check if path tracer library is loaded
+        if (!window.WebGLPathTracer) {
+            console.error('❌ Path tracer library not loaded yet');
+            alert('Path tracing library is still loading. Please wait a moment and try again.');
+            return false;
+        }
+
+        // Check WebGL 2.0 support
+        if (!this.renderer.capabilities.isWebGL2) {
+            console.error('❌ Path tracing requires WebGL 2.0 support');
+
+            // Show helpful error message
+            const errorMessage = `Path tracing requires WebGL 2.0 support.
+
+Your browser: ${navigator.userAgent.includes('Chrome') ? 'Chrome' : navigator.userAgent.includes('Firefox') ? 'Firefox' : navigator.userAgent.includes('Safari') ? 'Safari' : 'Unknown'}
+
+Solutions:
+• Update your browser to the latest version
+• Enable hardware acceleration in browser settings
+• Try Chrome, Firefox, or Edge (all support WebGL 2.0)
+
+The standard renderer will continue to work normally.`;
+
+            alert(errorMessage);
+            return false;
+        }
+
+        console.log('🎨 Enabling path tracing...');
+
+        // Initialize path tracer if not already created
+        if (!this.pathTracer) {
+            try {
+                this.pathTracer = new window.WebGLPathTracer(this.renderer);
+
+                // Configure path tracer for hybrid rendering
+                this.pathTracer.renderToCanvas = true; // Automatically copy to canvas
+                this.pathTracer.rasterizeScene = true; // Show rasterized preview while path tracing
+                this.pathTracer.renderScale = 1.0;
+                this.pathTracer.renderDelay = 0; // No delay for immediate feedback
+                this.pathTracer.fadeDuration = 0; // No fade for immediate updates
+
+                console.log('  ✓ Path tracer created');
+            } catch (error) {
+                console.error('❌ Failed to create path tracer:', error);
+                alert('Failed to initialize path tracing. Check console for details.');
+                return false;
+            }
+        }
+
+        // Apply quality preset
+        this.setPathTracingQuality(this.pathTracingQuality);
+
+        // Path tracer needs the original equirectangular texture, not the PMREM cube map
+        // Store PMREM for later restoration when disabling path tracing
+        this.pmremEnvironment = this.scene.environment;
+
+        if (this.originalHDRITexture) {
+            // Set original HDRI as environment for both path tracing and rasterization
+            this.scene.environment = this.originalHDRITexture;
+            console.log('  ✓ Set original HDRI texture for path tracer');
+        }
+
+        // Set scene and camera
+        if (this.scene && this.camera) {
+            try {
+                this.pathTracer.setScene(this.scene, this.camera);
+                console.log('  ✓ Scene set for path tracing');
+            } catch (error) {
+                console.error('❌ Failed to set scene:', error);
+                // Restore PMREM environment on failure
+                this.scene.environment = this.pmremEnvironment;
+                throw error;
+            }
+        }
+
+        // Keep original HDRI as environment (rasterizeScene will use it)
+
+        // Disable animations during path tracing (causes constant resets)
+        if (this.turntableEnabled) {
+            console.log('  ⚠️ Disabling turntable for path tracing');
+            this.turntableEnabled = false;
+            const turntableCheckbox = document.getElementById('turntable-enabled');
+            if (turntableCheckbox) turntableCheckbox.checked = false;
+        }
+        if (this.orbitEnabled) {
+            console.log('  ⚠️ Disabling camera orbit for path tracing');
+            this.orbitEnabled = false;
+            if (this.orbitControls) {
+                this.orbitControls.enabled = false;
+            }
+            const orbitCheckbox = document.getElementById('orbit-enabled');
+            if (orbitCheckbox) orbitCheckbox.checked = false;
+        }
+
+        this.pathTracingEnabled = true;
+        console.log('✅ Path tracing enabled');
+        return true;
+    }
+
+    disablePathTracing() {
+        this.pathTracingEnabled = false;
+
+        // Restore PMREM environment for rasterization
+        if (this.pmremEnvironment) {
+            this.scene.environment = this.pmremEnvironment;
+        } else if (this.currentHDRI) {
+            this.scene.environment = this.currentHDRI;
+        }
+
+        console.log('✅ Path tracing disabled');
+    }
+
+    setPathTracingQuality(preset) {
+        if (!this.pathTracingPresets[preset]) {
+            console.error(`Unknown quality preset: ${preset}`);
+            return;
+        }
+
+        const config = this.pathTracingPresets[preset];
+        this.pathTracingQuality = preset;
+        this.targetSamples = config.targetSamples;
+
+        if (this.pathTracer) {
+            // Set configurable properties
+            this.pathTracer.bounces = config.bounces;
+            // Note: tiles is read-only, managed internally by the path tracer
+            // this.pathTracer.minSamples is also read-only in some versions
+
+            // Reset to apply new settings
+            this.pathTracer.reset();
+
+            console.log(`✅ Path tracing quality: ${preset} (${config.bounces} bounces, ${config.targetSamples} samples)`);
+        }
+
+        // Update UI target samples display
+        const targetDisplay = document.getElementById('pathtracing-target');
+        if (targetDisplay) {
+            targetDisplay.textContent = config.targetSamples;
+        }
+    }
+
+    resetPathTracing() {
+        if (this.pathTracer) {
+            this.pathTracer.reset();
+            console.log('🔄 Path tracing reset');
+        }
+    }
+
     // ========== ANIMATION ==========
 
     animate() {
         this.animationFrameId = requestAnimationFrame(() => this.animate());
 
-        // Turntable animation
-        if (this.turntableEnabled && this.currentModel) {
-            this.modelContainer.rotateOnWorldAxis(
-                new THREE.Vector3(0, 1, 0),
-                ViewerConfig.animation.turntableRotationSpeed * this.turntableSpeed
-            );
+        // Update orbit controls if enabled (manual camera control)
+        if (this.orbitControls && this.orbitControls.enabled) {
+            this.orbitControls.update();
+        }
+
+        // Turntable animation (disabled during path tracing)
+        if (this.turntableEnabled && this.currentModel && !this.pathTracingEnabled) {
+            const baseSpeed = ViewerConfig.animation.turntableRotationSpeed;
+
+            // Apply rotation on each axis independently
+            if (this.turntableSpeedX !== 0) {
+                this.modelContainer.rotateOnWorldAxis(
+                    new THREE.Vector3(1, 0, 0),
+                    baseSpeed * this.turntableSpeedX
+                );
+            }
+            if (this.turntableSpeedY !== 0) {
+                this.modelContainer.rotateOnWorldAxis(
+                    new THREE.Vector3(0, 1, 0),
+                    baseSpeed * this.turntableSpeedY
+                );
+            }
+            if (this.turntableSpeedZ !== 0) {
+                this.modelContainer.rotateOnWorldAxis(
+                    new THREE.Vector3(0, 0, 1),
+                    baseSpeed * this.turntableSpeedZ
+                );
+            }
         }
 
         this.render();
     }
 
     render() {
-        // Render background layer (if not using HDRI background)
-        if (!this.hdriBackgroundVisible || !this.currentHDRI) {
-            this.renderBackgroundLayer();
-        }
+        if (this.pathTracingEnabled && this.pathTracer) {
+            // Path tracing mode - library handles hybrid rendering automatically
+            // rasterizeScene=true shows immediate rasterized preview
+            // renderToCanvas=true blends path traced samples on top
 
-        // Render Three.js scene
-        this.renderer.render(this.scene, this.camera);
+            // Render one path traced sample
+            this.pathTracer.renderSample();
+
+            // Update UI with sample count
+            const samplesDisplay = document.getElementById('pathtracing-samples');
+            if (samplesDisplay) {
+                samplesDisplay.textContent = this.pathTracer.samples;
+            }
+        } else {
+            // Standard rasterization mode - Three.js handles background directly
+            this.renderer.render(this.scene, this.camera);
+        }
     }
 
     // ========== EXPORT ==========
@@ -857,26 +1237,8 @@ class ModelViewer {
             const updateComposite = () => {
                 if (!this.isRecording) return;
 
-                // Render background
-                if (!this.hdriBackgroundVisible) {
-                    const bgTransparent = document.getElementById('bg-transparent');
-                    const isTransparent = bgTransparent && bgTransparent.checked;
-
-                    compositeCtx.clearRect(0, 0, compositeCanvas.width, compositeCanvas.height);
-
-                    if (!isTransparent) {
-                        if (this.backgroundImage) {
-                            const bgFit = document.getElementById('bg-fit')?.value || 'cover';
-                            this.drawScaledBackgroundImage(compositeCtx, compositeCanvas.width, compositeCanvas.height, bgFit);
-                        } else {
-                            const bgColor = document.getElementById('bg-color')?.value || '#1a1a1a';
-                            compositeCtx.fillStyle = bgColor;
-                            compositeCtx.fillRect(0, 0, compositeCanvas.width, compositeCanvas.height);
-                        }
-                    }
-                }
-
-                // Composite Three.js canvas on top
+                // Three.js handles background directly via scene.background
+                // Just copy the Three.js canvas to the composite canvas
                 compositeCtx.drawImage(this.canvas, 0, 0);
 
                 requestAnimationFrame(updateComposite);
@@ -1298,58 +1660,39 @@ ${isTransparent ?
         // Clear canvas
         ctx.clearRect(0, 0, width, height);
 
-        // Render background (if not showing HDRI background)
-        if (!this.hdriBackgroundVisible) {
-            const bgTransparent = document.getElementById('bg-transparent');
-            const isTransparent = bgTransparent && bgTransparent.checked;
-
-            if (!isTransparent) {
-                if (this.backgroundImage) {
-                    const bgFit = document.getElementById('bg-fit')?.value || 'cover';
-                    this.drawScaledBackgroundImage(ctx, width, height, bgFit);
-                } else {
-                    const bgColor = document.getElementById('bg-color')?.value || '#1a1a1a';
-                    ctx.fillStyle = bgColor;
-                    ctx.fillRect(0, 0, width, height);
-                }
-            }
-        }
-
-        // Render Three.js scene
+        // Render Three.js scene (background is already handled by scene.background)
         this.renderer.render(this.scene, this.camera);
 
         // Composite Three.js canvas
         ctx.drawImage(this.canvas, 0, 0, width, height);
-    }
 
-    // Helper method to draw scaled background image with proper fit modes
-    drawScaledBackgroundImage(ctx, width, height, fit) {
-        if (!this.backgroundImage) return;
+        // Composite foreground image (PNG overlay)
+        if (this.foregroundImage) {
+            // Always use 'cover' fit for foreground overlays
+            const canvasAspect = width / height;
+            const imageAspect = this.foregroundImage.width / this.foregroundImage.height;
 
-        const imgAspect = this.backgroundImage.width / this.backgroundImage.height;
-        const canvasAspect = width / height;
+            let drawWidth, drawHeight, offsetX, offsetY;
 
-        let drawX = 0, drawY = 0, drawWidth = width, drawHeight = height;
-
-        if (fit === 'cover') {
-            if (imgAspect > canvasAspect) {
-                drawWidth = height * imgAspect;
-                drawX = (width - drawWidth) / 2;
+            // Cover: fill entire canvas, may crop image
+            if (imageAspect > canvasAspect) {
+                drawHeight = height;
+                drawWidth = drawHeight * imageAspect;
+                offsetX = (width - drawWidth) / 2;
+                offsetY = 0;
             } else {
-                drawHeight = width / imgAspect;
-                drawY = (height - drawHeight) / 2;
+                drawWidth = width;
+                drawHeight = drawWidth / imageAspect;
+                offsetX = 0;
+                offsetY = (height - drawHeight) / 2;
             }
-        } else if (fit === 'contain') {
-            if (imgAspect > canvasAspect) {
-                drawHeight = width / imgAspect;
-                drawY = (height - drawHeight) / 2;
-            } else {
-                drawWidth = height * imgAspect;
-                drawX = (width - drawWidth) / 2;
-            }
+
+            ctx.drawImage(
+                this.foregroundImage,
+                offsetX, offsetY,
+                drawWidth, drawHeight
+            );
         }
-
-        ctx.drawImage(this.backgroundImage, drawX, drawY, drawWidth, drawHeight);
     }
 
     // ========== CLEANUP ==========

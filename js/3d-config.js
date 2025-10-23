@@ -5,11 +5,11 @@
  */
 
 const ViewerConfig = {
-    // Canvas resolution (Full HD for high-quality renders)
+    // Canvas resolution (Default: 1080×1350 vertical format)
     canvas: {
-        width: 1920,
-        height: 1080,
-        aspectRatio: 16 / 9
+        width: 1080,
+        height: 1350,
+        aspectRatio: 1080 / 1350
     },
 
     // Camera settings
@@ -81,11 +81,16 @@ const ViewerConfig = {
         hdriBackgroundVisible: false,
         sunEnabled: true,
         sunIntensity: 2.0,
+        sunAzimuth: 180, // Horizontal rotation (0-360°)
+        sunElevation: 45, // Vertical angle (-90 to 90°)
+        sunColor: '#ffffff',
         sunDistance: 20, // Far enough to act as directional light
         ambientIntensity: 0.1,
         shadowQuality: 2048, // Shadow map resolution
         shadowBias: -0.0001,
-        shadowRadius: 4 // Soft shadow edges
+        shadowRadius: 4, // Soft shadow edges
+        shadowSoftness: 4, // 1-10 scale
+        shadowIntensity: 0.5 // 0-1 opacity control
     },
 
     // Model defaults
@@ -94,6 +99,47 @@ const ViewerConfig = {
         autoScale: true,
         targetSize: 2, // Units to scale model to
         enableShadows: true
+    },
+
+    // Shader presets (preserves textures, modifies surface properties only)
+    shaderPresets: {
+        custom: {
+            // Original material properties (no override)
+            roughness: null,
+            metalness: null,
+            transmission: null,
+            clearcoat: null
+        },
+        metallic: {
+            roughness: 0.1,
+            metalness: 1.0,
+            transmission: 0.0,
+            clearcoat: 0.0
+        },
+        plastic: {
+            roughness: 0.3,
+            metalness: 0.0,
+            transmission: 0.0,
+            clearcoat: 0.8
+        },
+        glass: {
+            roughness: 0.0,
+            metalness: 0.0,
+            transmission: 0.9,
+            clearcoat: 1.0
+        },
+        matte: {
+            roughness: 1.0,
+            metalness: 0.0,
+            transmission: 0.0,
+            clearcoat: 0.0
+        },
+        glossy: {
+            roughness: 0.2,
+            metalness: 0.5,
+            transmission: 0.0,
+            clearcoat: 0.5
+        }
     },
 
     // Transform defaults
@@ -105,9 +151,12 @@ const ViewerConfig = {
 
     // Animation defaults
     animation: {
+        orbitEnabled: false, // Manual camera control with OrbitControls
         turntableEnabled: false,
-        turntableSpeed: 1.0,
-        turntableRotationSpeed: 0.01 // Radians per frame
+        turntableSpeedX: 0.0, // -2 to 2
+        turntableSpeedY: 1.0, // -2 to 2
+        turntableSpeedZ: 0.0, // -2 to 2
+        turntableRotationSpeed: 0.01 // Base radians per frame
     },
 
     // Background defaults
