@@ -409,12 +409,6 @@ window.addEventListener('DOMContentLoaded', () => {
                 window.viewer.orbitControls.enabled = enabled;
                 console.log(`🎥 Camera orbit controls ${enabled ? 'enabled' : 'disabled'}`);
             }
-
-            // If enabling orbit while path tracing is active, warn user
-            if (enabled && window.viewer.pathTracingEnabled) {
-                console.warn('⚠️ Camera movement will reset path tracing');
-                alert('Warning: Moving the camera will reset the path tracing render. Consider disabling path tracing or keeping the camera still.');
-            }
         });
     }
 
@@ -422,13 +416,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const turntableEnabled = document.getElementById('turntable-enabled');
     if (turntableEnabled && window.viewer) {
         turntableEnabled.addEventListener('change', (e) => {
-            window.viewer.turntableEnabled = e.target.checked;
-
-            // If enabling turntable while path tracing is active, warn user
-            if (e.target.checked && window.viewer.pathTracingEnabled) {
-                console.warn('⚠️ Turntable animation will constantly reset path tracing');
-                alert('Warning: Turntable animation will constantly reset the path tracing render. Consider disabling path tracing for smooth animation.');
-            }
+            window.viewer.setTurntableEnabled(e.target.checked);
         });
     }
 

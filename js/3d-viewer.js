@@ -63,6 +63,9 @@ class ModelViewer {
         this.turntableSpeedZ = ViewerConfig.animation.turntableSpeedZ;
         this.animationFrameId = null;
 
+        // Store initial rotation state for animation reset
+        this.rotationBeforeAnimation = null;
+
         // Export state
         this.isRecording = false;
 
@@ -86,6 +89,11 @@ class ModelViewer {
             high: { bounces: 15, minSamples: 10, targetSamples: 1000 },
             ultra: { bounces: 20, minSamples: 20, targetSamples: 5000 }
         };
+
+        // Interactive path tracing state
+        this.isInteracting = false;
+        this.interactionTimeout = null;
+        this.interactionDelay = 300; // ms to wait after interaction stops before resuming path tracing
 
         // Initialize
         this.init();
@@ -219,7 +227,41 @@ class ModelViewer {
         // Set initial state based on config
         this.orbitControls.enabled = this.orbitEnabled;
 
-        console.log('  ✓ Orbit controls initialized (disabled by default)');
+        // Add event listeners for path tracing interaction
+        this.orbitControls.addEventListener('start', () => {
+            if (this.pathTracingEnabled && this.pathTracer) {
+                this.isInteracting = true;
+                console.log('🎮 Orbit started - switching to standard render');
+
+                // Clear any pending timeout
+                if (this.interactionTimeout) {
+                    clearTimeout(this.interactionTimeout);
+                    this.interactionTimeout = null;
+                }
+            }
+        });
+
+        this.orbitControls.addEventListener('end', () => {
+            if (this.pathTracingEnabled && this.pathTracer) {
+                console.log('🎯 Orbit ended - preparing to resume path tracing');
+
+                // Set timeout to resume path tracing after interaction stops
+                this.interactionTimeout = setTimeout(() => {
+                    this.isInteracting = false;
+                    console.log('🎨 Orbit settled - resuming path tracing');
+
+                    // Force scene update before updating path tracer
+                    this.scene.updateMatrixWorld(true);
+
+                    // Update path tracer with new camera position
+                    this.pathTracer.setScene(this.scene, this.camera);
+
+                    console.log('✅ Path tracer updated with new camera position');
+                }, this.interactionDelay);
+            }
+        });
+
+        console.log('  ✓ Orbit controls initialized with path tracing support');
     }
 
     setupRenderer() {
@@ -519,9 +561,23 @@ class ModelViewer {
             }
         });
 
-        // Reset path tracing if active
+        // Trigger interaction mode for path tracing
         if (this.pathTracingEnabled && this.pathTracer) {
-            this.pathTracer.reset();
+            if (!this.isInteracting) {
+                this.isInteracting = true;
+            }
+
+            if (this.interactionTimeout) {
+                clearTimeout(this.interactionTimeout);
+            }
+
+            this.interactionTimeout = setTimeout(() => {
+                this.isInteracting = false;
+                this.scene.updateMatrixWorld(true);
+                // Use updateEnvironment() instead of setScene() for better performance
+                this.pathTracer.updateEnvironment();
+                console.log('✅ Path tracer environment updated with new HDRI settings');
+            }, this.interactionDelay);
         }
 
         console.log('  ✓ HDRI settings updated');
@@ -554,9 +610,22 @@ class ModelViewer {
         this.sunLight.shadow.radius = this.shadowSoftness;
         this.sunLight.shadow.bias = -0.0001 * this.shadowIntensity;
 
-        // Reset path tracing if active (lighting changed)
+        // Trigger interaction mode for path tracing
         if (this.pathTracingEnabled && this.pathTracer) {
-            this.pathTracer.reset();
+            if (!this.isInteracting) {
+                this.isInteracting = true;
+            }
+
+            if (this.interactionTimeout) {
+                clearTimeout(this.interactionTimeout);
+            }
+
+            this.interactionTimeout = setTimeout(() => {
+                this.isInteracting = false;
+                this.scene.updateMatrixWorld(true);
+                this.pathTracer.setScene(this.scene, this.camera);
+                console.log('✅ Path tracer updated with new sun light settings');
+            }, this.interactionDelay);
         }
     }
 
@@ -819,13 +888,35 @@ class ModelViewer {
         rotMatrix.multiply(matY).multiply(matX).multiply(matZ);
         this.modelContainer.rotation.setFromRotationMatrix(rotMatrix);
 
-        // Update path tracer if active
+        // Trigger interaction mode for path tracing
         if (this.pathTracingEnabled && this.pathTracer) {
-            // Update the scene matrices
+            // Switch to interaction mode (standard rendering)
+            if (!this.isInteracting) {
+                this.isInteracting = true;
+                console.log('🎮 Transform change - switching to standard render');
+            }
+
+            // Update the scene matrices immediately
             this.scene.updateMatrixWorld(true);
 
-            // Reset to render with new transform
-            this.pathTracer.reset();
+            // Clear existing timeout
+            if (this.interactionTimeout) {
+                clearTimeout(this.interactionTimeout);
+            }
+
+            // Set timeout to resume path tracing after interaction stops
+            this.interactionTimeout = setTimeout(() => {
+                this.isInteracting = false;
+                console.log('🎨 Transform settled - resuming path tracing');
+
+                // Force scene update before updating path tracer
+                this.scene.updateMatrixWorld(true);
+
+                // Update path tracer with new scene state
+                this.pathTracer.setScene(this.scene, this.camera);
+
+                console.log('✅ Path tracer updated with new transform state');
+            }, this.interactionDelay);
         }
     }
 
@@ -1014,12 +1105,14 @@ The standard renderer will continue to work normally.`;
             try {
                 this.pathTracer = new window.WebGLPathTracer(this.renderer);
 
-                // Configure path tracer for hybrid rendering
+                // Configure path tracer for interactive live rendering
                 this.pathTracer.renderToCanvas = true; // Automatically copy to canvas
                 this.pathTracer.rasterizeScene = true; // Show rasterized preview while path tracing
                 this.pathTracer.renderScale = 1.0;
                 this.pathTracer.renderDelay = 0; // No delay for immediate feedback
                 this.pathTracer.fadeDuration = 0; // No fade for immediate updates
+                this.pathTracer.synchronizeRenderSize = true; // Keep render size synced
+                this.pathTracer.pausePathTracing = false; // Never pause during interactions
 
                 console.log('  ✓ Path tracer created');
             } catch (error) {
@@ -1057,25 +1150,12 @@ The standard renderer will continue to work normally.`;
 
         // Keep original HDRI as environment (rasterizeScene will use it)
 
-        // Disable animations during path tracing (causes constant resets)
-        if (this.turntableEnabled) {
-            console.log('  ⚠️ Disabling turntable for path tracing');
-            this.turntableEnabled = false;
-            const turntableCheckbox = document.getElementById('turntable-enabled');
-            if (turntableCheckbox) turntableCheckbox.checked = false;
-        }
-        if (this.orbitEnabled) {
-            console.log('  ⚠️ Disabling camera orbit for path tracing');
-            this.orbitEnabled = false;
-            if (this.orbitControls) {
-                this.orbitControls.enabled = false;
-            }
-            const orbitCheckbox = document.getElementById('orbit-enabled');
-            if (orbitCheckbox) orbitCheckbox.checked = false;
-        }
+        // Note: Interactions will reset path tracing accumulation, but this is expected behavior
+        // The rasterized preview (rasterizeScene=true) provides immediate feedback
+        console.log('  ℹ️ Interactive mode: Controls remain active, samples reset on changes');
 
         this.pathTracingEnabled = true;
-        console.log('✅ Path tracing enabled');
+        console.log('✅ Path tracing enabled (interactive mode)');
         return true;
     }
 
@@ -1130,16 +1210,45 @@ The standard renderer will continue to work normally.`;
 
     // ========== ANIMATION ==========
 
+    setTurntableEnabled(enabled) {
+        if (enabled && !this.turntableEnabled) {
+            // Starting animation - save current rotation state
+            if (this.modelContainer) {
+                this.rotationBeforeAnimation = {
+                    x: this.modelContainer.rotation.x,
+                    y: this.modelContainer.rotation.y,
+                    z: this.modelContainer.rotation.z
+                };
+                console.log('💾 Saved rotation state before animation');
+            }
+        } else if (!enabled && this.turntableEnabled) {
+            // Stopping animation - restore original rotation
+            if (this.modelContainer && this.rotationBeforeAnimation) {
+                this.modelContainer.rotation.x = this.rotationBeforeAnimation.x;
+                this.modelContainer.rotation.y = this.rotationBeforeAnimation.y;
+                this.modelContainer.rotation.z = this.rotationBeforeAnimation.z;
+                console.log('🔄 Restored rotation state after animation');
+                this.rotationBeforeAnimation = null;
+            }
+        }
+
+        this.turntableEnabled = enabled;
+    }
+
     animate() {
         this.animationFrameId = requestAnimationFrame(() => this.animate());
 
+        // Track if scene has changed for interaction detection
+        let sceneChanged = false;
+
         // Update orbit controls if enabled (manual camera control)
+        // Note: Interaction detection is handled via 'start' and 'end' events
         if (this.orbitControls && this.orbitControls.enabled) {
             this.orbitControls.update();
         }
 
-        // Turntable animation (disabled during path tracing)
-        if (this.turntableEnabled && this.currentModel && !this.pathTracingEnabled) {
+        // Turntable animation
+        if (this.turntableEnabled && this.currentModel) {
             const baseSpeed = ViewerConfig.animation.turntableRotationSpeed;
 
             // Apply rotation on each axis independently
@@ -1148,41 +1257,89 @@ The standard renderer will continue to work normally.`;
                     new THREE.Vector3(1, 0, 0),
                     baseSpeed * this.turntableSpeedX
                 );
+                sceneChanged = true;
             }
             if (this.turntableSpeedY !== 0) {
                 this.modelContainer.rotateOnWorldAxis(
                     new THREE.Vector3(0, 1, 0),
                     baseSpeed * this.turntableSpeedY
                 );
+                sceneChanged = true;
             }
             if (this.turntableSpeedZ !== 0) {
                 this.modelContainer.rotateOnWorldAxis(
                     new THREE.Vector3(0, 0, 1),
                     baseSpeed * this.turntableSpeedZ
                 );
+                sceneChanged = true;
             }
+        }
+
+        // Handle turntable animation path tracing: switch to standard render during animation
+        if (this.pathTracingEnabled && this.pathTracer && sceneChanged) {
+            // Switch to interaction mode (standard rendering)
+            if (!this.isInteracting) {
+                this.isInteracting = true;
+                console.log('🎮 Turntable animation - switching to standard render');
+            }
+
+            // Update scene graph immediately
+            this.scene.updateMatrixWorld(true);
+
+            // Clear existing timeout
+            if (this.interactionTimeout) {
+                clearTimeout(this.interactionTimeout);
+            }
+
+            // Set timeout to resume path tracing after animation stops
+            this.interactionTimeout = setTimeout(() => {
+                this.isInteracting = false;
+                console.log('🎨 Turntable stopped - resuming path tracing');
+
+                // Force scene update before updating path tracer
+                this.scene.updateMatrixWorld(true);
+
+                // Update path tracer scene and camera with current state
+                this.pathTracer.setScene(this.scene, this.camera);
+
+                console.log('✅ Path tracer updated with new scene state');
+            }, this.interactionDelay);
         }
 
         this.render();
     }
 
     render() {
-        if (this.pathTracingEnabled && this.pathTracer) {
-            // Path tracing mode - library handles hybrid rendering automatically
+        if (this.pathTracingEnabled && this.pathTracer && !this.isInteracting) {
+            // Path tracing mode (only when NOT interacting)
             // rasterizeScene=true shows immediate rasterized preview
             // renderToCanvas=true blends path traced samples on top
 
-            // Render one path traced sample
-            this.pathTracer.renderSample();
+            try {
+                // Render one path traced sample
+                this.pathTracer.renderSample();
 
-            // Update UI with sample count
-            const samplesDisplay = document.getElementById('pathtracing-samples');
-            if (samplesDisplay) {
-                samplesDisplay.textContent = this.pathTracer.samples;
+                // Update UI with sample count
+                const samplesDisplay = document.getElementById('pathtracing-samples');
+                if (samplesDisplay) {
+                    samplesDisplay.textContent = this.pathTracer.samples;
+                }
+            } catch (error) {
+                console.error('Path tracing render error:', error);
+                // Fall back to standard rendering if path tracer fails
+                this.renderer.render(this.scene, this.camera);
             }
         } else {
-            // Standard rasterization mode - Three.js handles background directly
+            // Standard rasterization mode (default OR during interaction)
             this.renderer.render(this.scene, this.camera);
+
+            // Show "Interacting..." in sample display during interaction
+            if (this.isInteracting && this.pathTracingEnabled) {
+                const samplesDisplay = document.getElementById('pathtracing-samples');
+                if (samplesDisplay) {
+                    samplesDisplay.textContent = '—';
+                }
+            }
         }
     }
 
