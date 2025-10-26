@@ -108,37 +108,50 @@ const ViewerConfig = {
             roughness: null,
             metalness: null,
             transmission: null,
-            clearcoat: null
+            clearcoat: null,
+            color: null
         },
         metallic: {
             roughness: 0.1,
             metalness: 1.0,
             transmission: 0.0,
-            clearcoat: 0.0
+            clearcoat: 0.0,
+            color: null
         },
         plastic: {
             roughness: 0.3,
             metalness: 0.0,
             transmission: 0.0,
-            clearcoat: 0.8
+            clearcoat: 0.8,
+            color: null
         },
         glass: {
             roughness: 0.0,
             metalness: 0.0,
             transmission: 0.9,
-            clearcoat: 1.0
+            clearcoat: 1.0,
+            color: null
         },
         matte: {
             roughness: 1.0,
             metalness: 0.0,
             transmission: 0.0,
-            clearcoat: 0.0
+            clearcoat: 0.0,
+            color: null
         },
         glossy: {
             roughness: 0.2,
             metalness: 0.5,
             transmission: 0.0,
-            clearcoat: 0.5
+            clearcoat: 0.5,
+            color: null
+        },
+        clay: {
+            roughness: 0.8,
+            metalness: 0.0,
+            transmission: 0.0,
+            clearcoat: 0.0,
+            color: '#e8e0d5' // Off-white clay color
         }
     },
 
@@ -152,11 +165,22 @@ const ViewerConfig = {
     // Animation defaults
     animation: {
         orbitEnabled: false, // Manual camera control with OrbitControls
-        turntableEnabled: false,
+        animationEnabled: false, // Master animation toggle
+        animationMode: 'turntable', // 'turntable' or 'sine'
+
+        // Turntable animation settings
         turntableSpeedX: 0.0, // -2 to 2
         turntableSpeedY: 1.0, // -2 to 2
         turntableSpeedZ: 0.0, // -2 to 2
-        turntableRotationSpeed: 0.01 // Base radians per frame
+        turntableRotationSpeed: 0.01, // Base radians per frame
+
+        // Sine wave animation settings
+        sineAmplitudeX: 30, // Degrees
+        sineAmplitudeY: 30, // Degrees
+        sineAmplitudeZ: 30, // Degrees
+        sineFrequencyX: 1.0, // Hz
+        sineFrequencyY: 1.0, // Hz
+        sineFrequencyZ: 1.0 // Hz
     },
 
     // Background defaults

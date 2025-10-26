@@ -126,10 +126,10 @@
                     <span id="model-upload-text">Upload 3D Model</span>
                     <span class="remove-image" id="model-remove-btn" style="display: none;">&times;</span>
                 </div>
-                <input type="file" id="model-upload-input" accept=".glb,.gltf,.fbx" style="display: none;">
+                <input type="file" id="model-upload-input" accept=".glb,.fbx" title="Supported formats: GLB (recommended), FBX" style="display: none;">
 
                 <div style="font-size: 11px; color: var(--text-color-subtle); margin-top: 8px; text-align: center;">
-                    Supports: GLB, GLTF, FBX
+                    Supports: GLB (recommended), FBX
                 </div>
             </div>
 
@@ -148,9 +148,10 @@
                     <option value="glass">Glass</option>
                     <option value="matte">Matte</option>
                     <option value="glossy">Glossy</option>
+                    <option value="clay">Clay</option>
                 </select>
                 <div style="font-size: 11px; color: var(--text-color-subtle); margin-top: 8px;">
-                    Presets preserve textures and modify surface properties
+                    Clay preset removes textures for off-white clay appearance
                 </div>
             </div>
 
@@ -376,37 +377,99 @@
                     </div>
                 </div>
 
-                <!-- Turntable Toggle -->
+                <!-- Animation Toggle -->
                 <div style="margin-top: 16px;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                        <input type="checkbox" id="turntable-enabled" style="cursor: pointer;">
-                        <span>Enable Turntable</span>
+                        <input type="checkbox" id="animation-enabled" style="cursor: pointer;">
+                        <span>Enable Animation</span>
                     </label>
-                    <div style="font-size: 11px; color: var(--text-color-subtle); margin-top: 4px; margin-left: 24px;">
-                        Model rotates on multiple axes (combine X/Y/Z for effects)
+                </div>
+
+                <!-- Animation Mode -->
+                <div class="frame-control-row" style="margin-top: 12px;">
+                    <label for="animation-mode">Mode</label>
+                </div>
+                <select id="animation-mode">
+                    <option value="turntable">Turntable</option>
+                    <option value="sine">Sine Wave</option>
+                </select>
+
+                <!-- Turntable Controls (shown when mode = turntable) -->
+                <div id="turntable-controls">
+                    <div style="font-size: 11px; color: var(--text-color-subtle); margin-top: 8px;">
+                        Continuous rotation on multiple axes
                     </div>
+
+                    <!-- Turntable X-Axis Speed -->
+                    <div class="frame-control-row" style="margin-top: 12px;">
+                        <label for="turntable-speed-x">X-Axis Speed</label>
+                        <span id="turntable-speed-x-value" style="color: var(--text-color-subtle);">0.0</span>
+                    </div>
+                    <input type="range" id="turntable-speed-x" min="-2" max="2" step="0.1" value="0" class="slider">
+
+                    <!-- Turntable Y-Axis Speed -->
+                    <div class="frame-control-row" style="margin-top: 12px;">
+                        <label for="turntable-speed-y">Y-Axis Speed</label>
+                        <span id="turntable-speed-y-value" style="color: var(--text-color-subtle);">1.0</span>
+                    </div>
+                    <input type="range" id="turntable-speed-y" min="-2" max="2" step="0.1" value="1" class="slider">
+
+                    <!-- Turntable Z-Axis Speed -->
+                    <div class="frame-control-row" style="margin-top: 12px;">
+                        <label for="turntable-speed-z">Z-Axis Speed</label>
+                        <span id="turntable-speed-z-value" style="color: var(--text-color-subtle);">0.0</span>
+                    </div>
+                    <input type="range" id="turntable-speed-z" min="-2" max="2" step="0.1" value="0" class="slider">
                 </div>
 
-                <!-- Turntable X-Axis Speed -->
-                <div class="frame-control-row" style="margin-top: 16px;">
-                    <label for="turntable-speed-x">X-Axis Speed</label>
-                    <span id="turntable-speed-x-value" style="color: var(--text-color-subtle);">0.0</span>
-                </div>
-                <input type="range" id="turntable-speed-x" min="-2" max="2" step="0.1" value="0" class="slider">
+                <!-- Sine Wave Controls (shown when mode = sine) -->
+                <div id="sine-controls" style="display: none;">
+                    <div style="font-size: 11px; color: var(--text-color-subtle); margin-top: 8px;">
+                        Oscillating rotation using sine waves
+                    </div>
 
-                <!-- Turntable Y-Axis Speed -->
-                <div class="frame-control-row" style="margin-top: 12px;">
-                    <label for="turntable-speed-y">Y-Axis Speed</label>
-                    <span id="turntable-speed-y-value" style="color: var(--text-color-subtle);">1.0</span>
-                </div>
-                <input type="range" id="turntable-speed-y" min="-2" max="2" step="0.1" value="1" class="slider">
+                    <!-- X-Axis Amplitude -->
+                    <div class="frame-control-row" style="margin-top: 12px;">
+                        <label for="sine-amplitude-x">X Amplitude</label>
+                        <span id="sine-amplitude-x-value" style="color: var(--text-color-subtle);">30°</span>
+                    </div>
+                    <input type="range" id="sine-amplitude-x" min="0" max="180" step="5" value="30" class="slider">
 
-                <!-- Turntable Z-Axis Speed -->
-                <div class="frame-control-row" style="margin-top: 12px;">
-                    <label for="turntable-speed-z">Z-Axis Speed</label>
-                    <span id="turntable-speed-z-value" style="color: var(--text-color-subtle);">0.0</span>
+                    <!-- X-Axis Frequency -->
+                    <div class="frame-control-row" style="margin-top: 12px;">
+                        <label for="sine-frequency-x">X Frequency</label>
+                        <span id="sine-frequency-x-value" style="color: var(--text-color-subtle);">1.0 Hz</span>
+                    </div>
+                    <input type="range" id="sine-frequency-x" min="0.1" max="5" step="0.1" value="1.0" class="slider">
+
+                    <!-- Y-Axis Amplitude -->
+                    <div class="frame-control-row" style="margin-top: 12px;">
+                        <label for="sine-amplitude-y">Y Amplitude</label>
+                        <span id="sine-amplitude-y-value" style="color: var(--text-color-subtle);">30°</span>
+                    </div>
+                    <input type="range" id="sine-amplitude-y" min="0" max="180" step="5" value="30" class="slider">
+
+                    <!-- Y-Axis Frequency -->
+                    <div class="frame-control-row" style="margin-top: 12px;">
+                        <label for="sine-frequency-y">Y Frequency</label>
+                        <span id="sine-frequency-y-value" style="color: var(--text-color-subtle);">1.0 Hz</span>
+                    </div>
+                    <input type="range" id="sine-frequency-y" min="0.1" max="5" step="0.1" value="1.0" class="slider">
+
+                    <!-- Z-Axis Amplitude -->
+                    <div class="frame-control-row" style="margin-top: 12px;">
+                        <label for="sine-amplitude-z">Z Amplitude</label>
+                        <span id="sine-amplitude-z-value" style="color: var(--text-color-subtle);">30°</span>
+                    </div>
+                    <input type="range" id="sine-amplitude-z" min="0" max="180" step="5" value="30" class="slider">
+
+                    <!-- Z-Axis Frequency -->
+                    <div class="frame-control-row" style="margin-top: 12px;">
+                        <label for="sine-frequency-z">Z Frequency</label>
+                        <span id="sine-frequency-z-value" style="color: var(--text-color-subtle);">1.0 Hz</span>
+                    </div>
+                    <input type="range" id="sine-frequency-z" min="0.1" max="5" step="0.1" value="1.0" class="slider">
                 </div>
-                <input type="range" id="turntable-speed-z" min="-2" max="2" step="0.1" value="0" class="slider">
             </div>
 
             <!-- BACKGROUND SECTION -->
@@ -427,12 +490,22 @@
                     </label>
                 </div>
 
-                <!-- Background Image Upload -->
+                <!-- Background Image/Video Upload -->
                 <div class="control-btn" id="bg-image-btn" style="width: 100%; text-align: center; margin-top: 16px; position: relative;">
-                    <span id="bg-image-text">Upload Background Image</span>
+                    <span id="bg-image-text">Upload Background</span>
                     <span class="remove-image" id="bg-image-remove-btn" style="display: none;">&times;</span>
                 </div>
-                <input type="file" id="bg-image-input" accept="image/*" style="display: none;">
+                <input type="file" id="bg-image-input" accept="image/*,video/mp4,video/webm" style="display: none;">
+                <div style="font-size: 11px; color: var(--text-color-subtle); margin-top: 4px; text-align: center;">
+                    Images or MP4 videos (videos loop automatically)
+                </div>
+                <div style="font-size: 10px; color: var(--text-color-subtle); margin-top: 8px; padding: 8px; background: rgba(255,255,255,0.03); border-radius: 4px; border-left: 2px solid var(--primary-color);">
+                    <strong style="color: var(--primary-color);">💡 Video Tips:</strong><br>
+                    • Export as H.264 MP4 with "web streaming" preset<br>
+                    • Remove audio track for best performance<br>
+                    • Keep file size under 50MB for smooth looping<br>
+                    • WebM format also supported (better loop performance)
+                </div>
 
                 <!-- Image Fit (hidden until image uploaded) -->
                 <div id="bg-fit-group" style="display: none; margin-top: 12px;">

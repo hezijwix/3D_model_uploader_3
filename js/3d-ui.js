@@ -412,11 +412,34 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Turntable Toggle
-    const turntableEnabled = document.getElementById('turntable-enabled');
-    if (turntableEnabled && window.viewer) {
-        turntableEnabled.addEventListener('change', (e) => {
-            window.viewer.setTurntableEnabled(e.target.checked);
+    // Animation Toggle
+    const animationEnabled = document.getElementById('animation-enabled');
+    if (animationEnabled && window.viewer) {
+        animationEnabled.addEventListener('change', (e) => {
+            window.viewer.setAnimationEnabled(e.target.checked);
+        });
+    }
+
+    // Animation Mode
+    const animationMode = document.getElementById('animation-mode');
+    const turntableControls = document.getElementById('turntable-controls');
+    const sineControls = document.getElementById('sine-controls');
+
+    if (animationMode && window.viewer) {
+        animationMode.addEventListener('change', (e) => {
+            const mode = e.target.value;
+            window.viewer.setAnimationMode(mode);
+
+            // Show/hide appropriate controls
+            if (turntableControls && sineControls) {
+                if (mode === 'turntable') {
+                    turntableControls.style.display = 'block';
+                    sineControls.style.display = 'none';
+                } else if (mode === 'sine') {
+                    turntableControls.style.display = 'none';
+                    sineControls.style.display = 'block';
+                }
+            }
         });
     }
 
@@ -450,6 +473,72 @@ window.addEventListener('DOMContentLoaded', () => {
             const value = parseFloat(e.target.value);
             turntableSpeedZValue.textContent = value.toFixed(1);
             window.viewer.turntableSpeedZ = value;
+        });
+    }
+
+    // Sine Wave X-Axis Amplitude
+    const sineAmplitudeX = document.getElementById('sine-amplitude-x');
+    const sineAmplitudeXValue = document.getElementById('sine-amplitude-x-value');
+    if (sineAmplitudeX && window.viewer) {
+        sineAmplitudeX.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            sineAmplitudeXValue.textContent = value.toFixed(0) + '°';
+            window.viewer.sineAmplitudeX = value;
+        });
+    }
+
+    // Sine Wave X-Axis Frequency
+    const sineFrequencyX = document.getElementById('sine-frequency-x');
+    const sineFrequencyXValue = document.getElementById('sine-frequency-x-value');
+    if (sineFrequencyX && window.viewer) {
+        sineFrequencyX.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            sineFrequencyXValue.textContent = value.toFixed(1) + ' Hz';
+            window.viewer.sineFrequencyX = value;
+        });
+    }
+
+    // Sine Wave Y-Axis Amplitude
+    const sineAmplitudeY = document.getElementById('sine-amplitude-y');
+    const sineAmplitudeYValue = document.getElementById('sine-amplitude-y-value');
+    if (sineAmplitudeY && window.viewer) {
+        sineAmplitudeY.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            sineAmplitudeYValue.textContent = value.toFixed(0) + '°';
+            window.viewer.sineAmplitudeY = value;
+        });
+    }
+
+    // Sine Wave Y-Axis Frequency
+    const sineFrequencyY = document.getElementById('sine-frequency-y');
+    const sineFrequencyYValue = document.getElementById('sine-frequency-y-value');
+    if (sineFrequencyY && window.viewer) {
+        sineFrequencyY.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            sineFrequencyYValue.textContent = value.toFixed(1) + ' Hz';
+            window.viewer.sineFrequencyY = value;
+        });
+    }
+
+    // Sine Wave Z-Axis Amplitude
+    const sineAmplitudeZ = document.getElementById('sine-amplitude-z');
+    const sineAmplitudeZValue = document.getElementById('sine-amplitude-z-value');
+    if (sineAmplitudeZ && window.viewer) {
+        sineAmplitudeZ.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            sineAmplitudeZValue.textContent = value.toFixed(0) + '°';
+            window.viewer.sineAmplitudeZ = value;
+        });
+    }
+
+    // Sine Wave Z-Axis Frequency
+    const sineFrequencyZ = document.getElementById('sine-frequency-z');
+    const sineFrequencyZValue = document.getElementById('sine-frequency-z-value');
+    if (sineFrequencyZ && window.viewer) {
+        sineFrequencyZ.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            sineFrequencyZValue.textContent = value.toFixed(1) + ' Hz';
+            window.viewer.sineFrequencyZ = value;
         });
     }
 
@@ -487,21 +576,65 @@ window.addEventListener('DOMContentLoaded', () => {
         bgImageInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (file && window.viewer) {
-                const img = new Image();
-                img.onload = () => {
-                    window.viewer.setBackgroundImage(img);
-                    bgImageText.textContent = file.name.length > 20
-                        ? file.name.substring(0, 20) + '...'
-                        : file.name;
-                    bgImageRemoveBtn.style.display = 'block';
-                    bgFitGroup.style.display = 'block';
-                    console.log('✅ Background image loaded');
-                };
-                img.onerror = () => {
-                    console.error('❌ Failed to load background image');
-                    alert('Failed to load image');
-                };
-                img.src = URL.createObjectURL(file);
+                const isVideo = file.type.startsWith('video/');
+
+                if (isVideo) {
+                    // Handle MP4 video with performance optimizations
+                    const video = document.createElement('video');
+                    video.src = URL.createObjectURL(file);
+                    video.muted = true;
+                    video.playsInline = true;
+                    video.preload = 'auto'; // Preload entire video for smooth playback
+
+                    // Custom loop handler for seamless looping (better than native loop attribute)
+                    video.addEventListener('ended', () => {
+                        video.currentTime = 0;
+                        video.play().catch(err => {
+                            console.warn('⚠️ Loop restart failed:', err);
+                        });
+                    });
+
+                    // Wait for video to be fully buffered before starting
+                    video.addEventListener('canplaythrough', () => {
+                        window.viewer.setBackgroundVideo(video);
+                        bgImageText.textContent = file.name.length > 20
+                            ? file.name.substring(0, 20) + '...'
+                            : file.name;
+                        bgImageRemoveBtn.style.display = 'block';
+                        bgFitGroup.style.display = 'none'; // Videos always fill
+                        console.log('✅ Background video loaded and buffered');
+
+                        // Start playing
+                        video.play().catch(err => {
+                            console.warn('⚠️ Autoplay blocked, video may not play:', err);
+                        });
+                    }, { once: true });
+
+                    video.addEventListener('error', () => {
+                        console.error('❌ Failed to load background video');
+                        alert('Failed to load video. Please use MP4 format.');
+                    });
+
+                    // Explicitly load video to start buffering
+                    video.load();
+                } else {
+                    // Handle image
+                    const img = new Image();
+                    img.onload = () => {
+                        window.viewer.setBackgroundImage(img);
+                        bgImageText.textContent = file.name.length > 20
+                            ? file.name.substring(0, 20) + '...'
+                            : file.name;
+                        bgImageRemoveBtn.style.display = 'block';
+                        bgFitGroup.style.display = 'block';
+                        console.log('✅ Background image loaded');
+                    };
+                    img.onerror = () => {
+                        console.error('❌ Failed to load background image');
+                        alert('Failed to load image');
+                    };
+                    img.src = URL.createObjectURL(file);
+                }
             }
         });
 
@@ -510,7 +643,7 @@ window.addEventListener('DOMContentLoaded', () => {
             if (window.viewer) {
                 window.viewer.clearBackgroundImage();
                 bgImageInput.value = '';
-                bgImageText.textContent = 'Upload Background Image';
+                bgImageText.textContent = 'Upload Background';
                 bgImageRemoveBtn.style.display = 'none';
                 bgFitGroup.style.display = 'none';
             }

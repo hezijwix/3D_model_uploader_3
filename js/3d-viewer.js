@@ -25,6 +25,8 @@ class ModelViewer {
 
         // Background rendering (removed separate canvas, now handled by Three.js scene.background)
         this.backgroundImage = null;
+        this.backgroundVideo = null;
+        this.backgroundVideoTexture = null; // Cache video texture for performance
         this.backgroundImageFit = ViewerConfig.background.imageFit;
         this.backgroundColor = ViewerConfig.background.color;
 
@@ -57,10 +59,23 @@ class ModelViewer {
         this.orbitEnabled = ViewerConfig.animation.orbitEnabled;
 
         // Animation
-        this.turntableEnabled = ViewerConfig.animation.turntableEnabled;
+        this.animationEnabled = ViewerConfig.animation.animationEnabled;
+        this.animationMode = ViewerConfig.animation.animationMode;
+
+        // Turntable animation
         this.turntableSpeedX = ViewerConfig.animation.turntableSpeedX;
         this.turntableSpeedY = ViewerConfig.animation.turntableSpeedY;
         this.turntableSpeedZ = ViewerConfig.animation.turntableSpeedZ;
+
+        // Sine wave animation
+        this.sineAmplitudeX = ViewerConfig.animation.sineAmplitudeX;
+        this.sineAmplitudeY = ViewerConfig.animation.sineAmplitudeY;
+        this.sineAmplitudeZ = ViewerConfig.animation.sineAmplitudeZ;
+        this.sineFrequencyX = ViewerConfig.animation.sineFrequencyX;
+        this.sineFrequencyY = ViewerConfig.animation.sineFrequencyY;
+        this.sineFrequencyZ = ViewerConfig.animation.sineFrequencyZ;
+        this.sineTime = 0; // Time accumulator for sine wave
+
         this.animationFrameId = null;
 
         // Store initial rotation state for animation reset
@@ -650,6 +665,25 @@ class ModelViewer {
     }
 
     loadGLTF(url, filename) {
+        // Check if this is a GLTF (not GLB) which requires external files
+        const isGLTF = filename.toLowerCase().endsWith('.gltf');
+
+        if (isGLTF) {
+            console.warn('⚠️ GLTF format detected - requires external texture/bin files');
+            console.warn('💡 Recommendation: Convert to GLB format for single-file upload');
+            console.warn('📝 Online converter: https://products.aspose.app/3d/conversion/gltf-to-glb');
+
+            alert(
+                '⚠️ GLTF Format Limitation\n\n' +
+                'GLTF files reference external textures and binary data.\n' +
+                'This viewer currently supports single-file uploads only.\n\n' +
+                '✅ Solution: Convert to GLB format (binary GLTF)\n' +
+                'GLB packages all resources into a single file.\n\n' +
+                'Free converter: https://products.aspose.app/3d/conversion/gltf-to-glb'
+            );
+            return;
+        }
+
         this.gltfLoader.load(
             url,
             (gltf) => {
@@ -799,7 +833,9 @@ class ModelViewer {
                             roughness: mat.roughness,
                             metalness: mat.metalness,
                             transmission: mat.transmission || 0,
-                            clearcoat: mat.clearcoat || 0
+                            clearcoat: mat.clearcoat || 0,
+                            color: mat.color ? mat.color.clone() : new THREE.Color(0xffffff),
+                            map: mat.map
                         });
                     }
 
@@ -812,6 +848,8 @@ class ModelViewer {
                             mat.metalness = original.metalness;
                             mat.transmission = original.transmission;
                             mat.clearcoat = original.clearcoat;
+                            mat.color.copy(original.color);
+                            mat.map = original.map;
                         }
                     } else {
                         // Apply preset properties (only if not null)
@@ -819,6 +857,19 @@ class ModelViewer {
                         if (preset.metalness !== null) mat.metalness = preset.metalness;
                         if (preset.transmission !== null) mat.transmission = preset.transmission;
                         if (preset.clearcoat !== null) mat.clearcoat = preset.clearcoat;
+
+                        // Apply color override (for clay preset)
+                        if (preset.color !== null) {
+                            mat.color.setStyle(preset.color);
+                            // Remove texture map to show solid color
+                            mat.map = null;
+                        } else {
+                            // Restore original texture map if no color override
+                            const original = this.originalMaterials.get(matKey);
+                            if (original && original.map) {
+                                mat.map = original.map;
+                            }
+                        }
 
                         // Enable transparency if using transmission
                         if (preset.transmission > 0) {
@@ -937,6 +988,16 @@ class ModelViewer {
             this.renderer.setClearColor(0x000000, 0);
             this.renderer.toneMapping = THREE.NoToneMapping;
             console.log('  ✓ Background: Transparent');
+        } else if (this.backgroundVideo) {
+            // Background video as texture (cached for performance)
+            if (!this.backgroundVideoTexture) {
+                this.backgroundVideoTexture = new THREE.VideoTexture(this.backgroundVideo);
+                this.backgroundVideoTexture.colorSpace = THREE.SRGBColorSpace;
+                console.log('  ✓ Created new video texture');
+            }
+            this.scene.background = this.backgroundVideoTexture;
+            this.renderer.toneMapping = THREE.NoToneMapping;
+            console.log('  ✓ Background: Custom video (cached texture)');
         } else if (this.backgroundImage) {
             // Background image as texture
             const texture = new THREE.CanvasTexture(this.createBackgroundImageCanvas());
@@ -1010,11 +1071,39 @@ class ModelViewer {
 
     setBackgroundImage(image) {
         this.backgroundImage = image;
+        this.backgroundVideo = null; // Clear video if image is set
+        this.updateCanvasBackground();
+    }
+
+    setBackgroundVideo(video) {
+        this.backgroundVideo = video;
+        this.backgroundImage = null; // Clear image if video is set
+
+        // Dispose old video texture if it exists
+        if (this.backgroundVideoTexture) {
+            this.backgroundVideoTexture.dispose();
+            this.backgroundVideoTexture = null;
+        }
+
         this.updateCanvasBackground();
     }
 
     clearBackgroundImage() {
         this.backgroundImage = null;
+        this.backgroundVideo = null;
+
+        // Stop and clean up video if it exists
+        if (this.backgroundVideo) {
+            this.backgroundVideo.pause();
+            this.backgroundVideo.src = '';
+        }
+
+        // Dispose video texture
+        if (this.backgroundVideoTexture) {
+            this.backgroundVideoTexture.dispose();
+            this.backgroundVideoTexture = null;
+        }
+
         this.updateCanvasBackground();
     }
 
@@ -1210,8 +1299,8 @@ The standard renderer will continue to work normally.`;
 
     // ========== ANIMATION ==========
 
-    setTurntableEnabled(enabled) {
-        if (enabled && !this.turntableEnabled) {
+    setAnimationEnabled(enabled) {
+        if (enabled && !this.animationEnabled) {
             // Starting animation - save current rotation state
             if (this.modelContainer) {
                 this.rotationBeforeAnimation = {
@@ -1219,9 +1308,10 @@ The standard renderer will continue to work normally.`;
                     y: this.modelContainer.rotation.y,
                     z: this.modelContainer.rotation.z
                 };
+                this.sineTime = 0; // Reset sine wave time
                 console.log('💾 Saved rotation state before animation');
             }
-        } else if (!enabled && this.turntableEnabled) {
+        } else if (!enabled && this.animationEnabled) {
             // Stopping animation - restore original rotation
             if (this.modelContainer && this.rotationBeforeAnimation) {
                 this.modelContainer.rotation.x = this.rotationBeforeAnimation.x;
@@ -1232,7 +1322,26 @@ The standard renderer will continue to work normally.`;
             }
         }
 
-        this.turntableEnabled = enabled;
+        this.animationEnabled = enabled;
+    }
+
+    setAnimationMode(mode) {
+        const wasEnabled = this.animationEnabled;
+
+        // If switching modes while animation is running, reset rotation
+        if (wasEnabled) {
+            this.setAnimationEnabled(false);
+        }
+
+        this.animationMode = mode;
+        this.sineTime = 0; // Reset sine wave time when switching modes
+
+        // Re-enable animation if it was running
+        if (wasEnabled) {
+            this.setAnimationEnabled(true);
+        }
+
+        console.log(`🎬 Animation mode set to: ${mode}`);
     }
 
     animate() {
@@ -1247,40 +1356,66 @@ The standard renderer will continue to work normally.`;
             this.orbitControls.update();
         }
 
-        // Turntable animation
-        if (this.turntableEnabled && this.currentModel) {
-            const baseSpeed = ViewerConfig.animation.turntableRotationSpeed;
+        // Animation (turntable or sine wave)
+        if (this.animationEnabled && this.currentModel && this.rotationBeforeAnimation) {
+            if (this.animationMode === 'turntable') {
+                // Turntable animation - continuous rotation
+                const baseSpeed = ViewerConfig.animation.turntableRotationSpeed;
 
-            // Apply rotation on each axis independently
-            if (this.turntableSpeedX !== 0) {
-                this.modelContainer.rotateOnWorldAxis(
-                    new THREE.Vector3(1, 0, 0),
-                    baseSpeed * this.turntableSpeedX
-                );
-                sceneChanged = true;
-            }
-            if (this.turntableSpeedY !== 0) {
-                this.modelContainer.rotateOnWorldAxis(
-                    new THREE.Vector3(0, 1, 0),
-                    baseSpeed * this.turntableSpeedY
-                );
-                sceneChanged = true;
-            }
-            if (this.turntableSpeedZ !== 0) {
-                this.modelContainer.rotateOnWorldAxis(
-                    new THREE.Vector3(0, 0, 1),
-                    baseSpeed * this.turntableSpeedZ
-                );
+                // Apply rotation on each axis independently
+                if (this.turntableSpeedX !== 0) {
+                    this.modelContainer.rotateOnWorldAxis(
+                        new THREE.Vector3(1, 0, 0),
+                        baseSpeed * this.turntableSpeedX
+                    );
+                    sceneChanged = true;
+                }
+                if (this.turntableSpeedY !== 0) {
+                    this.modelContainer.rotateOnWorldAxis(
+                        new THREE.Vector3(0, 1, 0),
+                        baseSpeed * this.turntableSpeedY
+                    );
+                    sceneChanged = true;
+                }
+                if (this.turntableSpeedZ !== 0) {
+                    this.modelContainer.rotateOnWorldAxis(
+                        new THREE.Vector3(0, 0, 1),
+                        baseSpeed * this.turntableSpeedZ
+                    );
+                    sceneChanged = true;
+                }
+            } else if (this.animationMode === 'sine') {
+                // Sine wave animation - oscillating rotation
+                this.sineTime += 1 / 60; // Increment time (assuming 60fps)
+
+                // Calculate sine wave rotation for each axis
+                const rotX = this.rotationBeforeAnimation.x +
+                    (Math.sin(this.sineTime * this.sineFrequencyX * Math.PI * 2) *
+                    this.sineAmplitudeX * Math.PI / 180);
+
+                const rotY = this.rotationBeforeAnimation.y +
+                    (Math.sin(this.sineTime * this.sineFrequencyY * Math.PI * 2) *
+                    this.sineAmplitudeY * Math.PI / 180);
+
+                const rotZ = this.rotationBeforeAnimation.z +
+                    (Math.sin(this.sineTime * this.sineFrequencyZ * Math.PI * 2) *
+                    this.sineAmplitudeZ * Math.PI / 180);
+
+                // Apply sine wave rotation
+                this.modelContainer.rotation.x = rotX;
+                this.modelContainer.rotation.y = rotY;
+                this.modelContainer.rotation.z = rotZ;
+
                 sceneChanged = true;
             }
         }
 
-        // Handle turntable animation path tracing: switch to standard render during animation
+        // Handle animation path tracing: switch to standard render during animation
         if (this.pathTracingEnabled && this.pathTracer && sceneChanged) {
             // Switch to interaction mode (standard rendering)
             if (!this.isInteracting) {
                 this.isInteracting = true;
-                console.log('🎮 Turntable animation - switching to standard render');
+                console.log('🎮 Animation active - switching to standard render');
             }
 
             // Update scene graph immediately
@@ -1294,7 +1429,7 @@ The standard renderer will continue to work normally.`;
             // Set timeout to resume path tracing after animation stops
             this.interactionTimeout = setTimeout(() => {
                 this.isInteracting = false;
-                console.log('🎨 Turntable stopped - resuming path tracing');
+                console.log('🎨 Animation stopped - resuming path tracing');
 
                 // Force scene update before updating path tracer
                 this.scene.updateMatrixWorld(true);
@@ -1816,6 +1951,13 @@ ${isTransparent ?
 
         // Clear canvas
         ctx.clearRect(0, 0, width, height);
+
+        // Ensure video is playing before render (for exports)
+        if (this.backgroundVideo && this.backgroundVideo.paused) {
+            this.backgroundVideo.play().catch(() => {
+                console.warn('⚠️ Video autoplay blocked during export');
+            });
+        }
 
         // Render Three.js scene (background is already handled by scene.background)
         this.renderer.render(this.scene, this.camera);
