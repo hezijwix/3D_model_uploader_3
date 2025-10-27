@@ -155,52 +155,6 @@
                 </div>
             </div>
 
-            <!-- TRANSFORM CONTROLS SECTION -->
-            <div class="controls-section section-with-divider">
-                <h4>Transform</h4>
-
-                <!-- Scale -->
-                <div class="frame-control-row">
-                    <label for="model-scale">Scale</label>
-                    <span id="model-scale-value" style="color: var(--text-color-subtle);">1.0</span>
-                </div>
-                <input type="range" id="model-scale" min="0.1" max="5" step="0.1" value="1" class="slider">
-
-                <!-- Position X -->
-                <div class="frame-control-row" style="margin-top: 12px;">
-                    <label for="model-pos-x">Position X</label>
-                    <span id="model-pos-x-value" style="color: var(--text-color-subtle);">0.0</span>
-                </div>
-                <input type="range" id="model-pos-x" min="-5" max="5" step="0.1" value="0" class="slider">
-
-                <!-- Position Y -->
-                <div class="frame-control-row" style="margin-top: 12px;">
-                    <label for="model-pos-y">Position Y</label>
-                    <span id="model-pos-y-value" style="color: var(--text-color-subtle);">0.0</span>
-                </div>
-                <input type="range" id="model-pos-y" min="-5" max="5" step="0.1" value="0" class="slider">
-
-                <!-- Rotation X -->
-                <div class="frame-control-row" style="margin-top: 12px;">
-                    <label for="model-rot-x">Rotation X</label>
-                    <span id="model-rot-x-value" style="color: var(--text-color-subtle);">0°</span>
-                </div>
-                <input type="range" id="model-rot-x" min="0" max="360" step="1" value="0" class="slider">
-
-                <!-- Rotation Y -->
-                <div class="frame-control-row" style="margin-top: 12px;">
-                    <label for="model-rot-y">Rotation Y</label>
-                    <span id="model-rot-y-value" style="color: var(--text-color-subtle);">0°</span>
-                </div>
-                <input type="range" id="model-rot-y" min="0" max="360" step="1" value="0" class="slider">
-
-                <!-- Rotation Z -->
-                <div class="frame-control-row" style="margin-top: 12px;">
-                    <label for="model-rot-z">Rotation Z</label>
-                    <span id="model-rot-z-value" style="color: var(--text-color-subtle);">0°</span>
-                </div>
-                <input type="range" id="model-rot-z" min="0" max="360" step="1" value="0" class="slider">
-            </div>
 
             <!-- HDRI LIGHTING SECTION -->
             <div class="controls-section section-with-divider">
@@ -369,7 +323,7 @@
                 <!-- Camera Orbit Toggle -->
                 <div style="margin-top: 8px;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                        <input type="checkbox" id="orbit-enabled" style="cursor: pointer;">
+                        <input type="checkbox" id="orbit-enabled" checked style="cursor: pointer;">
                         <span>Enable Camera Orbit</span>
                     </label>
                     <div style="font-size: 11px; color: var(--text-color-subtle); margin-top: 4px; margin-left: 24px;">
@@ -431,45 +385,71 @@
                     <!-- X-Axis Amplitude -->
                     <div class="frame-control-row" style="margin-top: 12px;">
                         <label for="sine-amplitude-x">X Amplitude</label>
-                        <span id="sine-amplitude-x-value" style="color: var(--text-color-subtle);">30°</span>
+                        <span id="sine-amplitude-x-value" style="color: var(--text-color-subtle);">0°</span>
                     </div>
-                    <input type="range" id="sine-amplitude-x" min="0" max="180" step="5" value="30" class="slider">
+                    <input type="range" id="sine-amplitude-x" min="0" max="360" step="5" value="0" class="slider">
 
                     <!-- X-Axis Frequency -->
                     <div class="frame-control-row" style="margin-top: 12px;">
                         <label for="sine-frequency-x">X Frequency</label>
-                        <span id="sine-frequency-x-value" style="color: var(--text-color-subtle);">1.0 Hz</span>
+                        <span id="sine-frequency-x-value" style="color: var(--text-color-subtle);">0.0 Hz</span>
                     </div>
-                    <input type="range" id="sine-frequency-x" min="0.1" max="5" step="0.1" value="1.0" class="slider">
+                    <input type="range" id="sine-frequency-x" min="0" max="2" step="0.1" value="0" class="slider">
 
                     <!-- Y-Axis Amplitude -->
                     <div class="frame-control-row" style="margin-top: 12px;">
                         <label for="sine-amplitude-y">Y Amplitude</label>
-                        <span id="sine-amplitude-y-value" style="color: var(--text-color-subtle);">30°</span>
+                        <span id="sine-amplitude-y-value" style="color: var(--text-color-subtle);">0°</span>
                     </div>
-                    <input type="range" id="sine-amplitude-y" min="0" max="180" step="5" value="30" class="slider">
+                    <input type="range" id="sine-amplitude-y" min="0" max="360" step="5" value="0" class="slider">
 
                     <!-- Y-Axis Frequency -->
                     <div class="frame-control-row" style="margin-top: 12px;">
                         <label for="sine-frequency-y">Y Frequency</label>
-                        <span id="sine-frequency-y-value" style="color: var(--text-color-subtle);">1.0 Hz</span>
+                        <span id="sine-frequency-y-value" style="color: var(--text-color-subtle);">0.0 Hz</span>
                     </div>
-                    <input type="range" id="sine-frequency-y" min="0.1" max="5" step="0.1" value="1.0" class="slider">
+                    <input type="range" id="sine-frequency-y" min="0" max="2" step="0.1" value="0" class="slider">
 
                     <!-- Z-Axis Amplitude -->
                     <div class="frame-control-row" style="margin-top: 12px;">
                         <label for="sine-amplitude-z">Z Amplitude</label>
-                        <span id="sine-amplitude-z-value" style="color: var(--text-color-subtle);">30°</span>
+                        <span id="sine-amplitude-z-value" style="color: var(--text-color-subtle);">0°</span>
                     </div>
-                    <input type="range" id="sine-amplitude-z" min="0" max="180" step="5" value="30" class="slider">
+                    <input type="range" id="sine-amplitude-z" min="0" max="360" step="5" value="0" class="slider">
 
                     <!-- Z-Axis Frequency -->
                     <div class="frame-control-row" style="margin-top: 12px;">
                         <label for="sine-frequency-z">Z Frequency</label>
-                        <span id="sine-frequency-z-value" style="color: var(--text-color-subtle);">1.0 Hz</span>
+                        <span id="sine-frequency-z-value" style="color: var(--text-color-subtle);">0.0 Hz</span>
                     </div>
-                    <input type="range" id="sine-frequency-z" min="0.1" max="5" step="0.1" value="1.0" class="slider">
+                    <input type="range" id="sine-frequency-z" min="0" max="2" step="0.1" value="0" class="slider">
                 </div>
+            </div>
+
+            <!-- TRANSFORM CONTROLS SECTION -->
+            <div class="controls-section section-with-divider">
+                <h4>Transform</h4>
+
+                <!-- Scale -->
+                <div class="frame-control-row">
+                    <label for="model-scale">Scale</label>
+                    <span id="model-scale-value" style="color: var(--text-color-subtle);">1.0</span>
+                </div>
+                <input type="range" id="model-scale" min="0.1" max="5" step="0.1" value="1" class="slider">
+
+                <!-- Position X -->
+                <div class="frame-control-row" style="margin-top: 12px;">
+                    <label for="model-pos-x">Position X</label>
+                    <span id="model-pos-x-value" style="color: var(--text-color-subtle);">0.0</span>
+                </div>
+                <input type="range" id="model-pos-x" min="-5" max="5" step="0.1" value="0" class="slider">
+
+                <!-- Position Y -->
+                <div class="frame-control-row" style="margin-top: 12px;">
+                    <label for="model-pos-y">Position Y</label>
+                    <span id="model-pos-y-value" style="color: var(--text-color-subtle);">0.0</span>
+                </div>
+                <input type="range" id="model-pos-y" min="-5" max="5" step="0.1" value="0" class="slider">
             </div>
 
             <!-- BACKGROUND SECTION -->

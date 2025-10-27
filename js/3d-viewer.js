@@ -35,10 +35,15 @@ class ModelViewer {
         this.foregroundCtx = null;
         this.foregroundImage = null;
 
-        // HDRI environment
+        // HDRI environment - Dual Environment System:
+        // - originalHDRITexture: Equirectangular texture for path tracing (required by path tracer)
+        // - currentHDRI: PMREM cube map for standard rendering (optimized for real-time)
+        // - pmremEnvironment: Stored PMREM when path tracing is active (for restoration)
+        // The scene.environment switches between these based on rendering mode
         this.pmremGenerator = null;
         this.currentHDRI = null;
         this.originalHDRITexture = null;
+        this.pmremEnvironment = null;
         this.hdriIntensity = ViewerConfig.lighting.hdriIntensity;
         this.hdriRotation = ViewerConfig.lighting.hdriRotation;
         this.hdriBackgroundVisible = ViewerConfig.lighting.hdriBackgroundVisible;
@@ -517,10 +522,18 @@ class ModelViewer {
             this.currentHDRI.dispose();
         }
         const envMap = this.pmremGenerator.fromEquirectangular(texture).texture;
-
-        // Apply to scene lighting
-        this.scene.environment = envMap;
         this.currentHDRI = envMap;
+
+        // Apply environment based on rendering mode
+        if (this.pathTracingEnabled && this.originalHDRITexture) {
+            // Path tracing: use original equirectangular texture
+            this.scene.environment = this.originalHDRITexture;
+            console.log('  ✓ Using original HDRI for path tracing');
+        } else {
+            // Standard rendering: use PMREM cube map
+            this.scene.environment = envMap;
+            console.log('  ✓ Using PMREM cube map for standard rendering');
+        }
 
         // Rotate using r162+ API
         if (this.scene.environmentRotation) {
@@ -589,6 +602,17 @@ class ModelViewer {
             this.interactionTimeout = setTimeout(() => {
                 this.isInteracting = false;
                 this.scene.updateMatrixWorld(true);
+
+                // Ensure path tracer uses original equirectangular texture
+                if (this.originalHDRITexture) {
+                    this.scene.environment = this.originalHDRITexture;
+                }
+
+                // Apply rotation to scene before updating path tracer
+                if (this.scene.environmentRotation) {
+                    this.scene.environmentRotation.set(0, rotationRadians, 0);
+                }
+
                 // Use updateEnvironment() instead of setScene() for better performance
                 this.pathTracer.updateEnvironment();
                 console.log('✅ Path tracer environment updated with new HDRI settings');
@@ -638,7 +662,8 @@ class ModelViewer {
             this.interactionTimeout = setTimeout(() => {
                 this.isInteracting = false;
                 this.scene.updateMatrixWorld(true);
-                this.pathTracer.setScene(this.scene, this.camera);
+                // Use updateLights() instead of setScene() for better performance
+                this.pathTracer.updateLights();
                 console.log('✅ Path tracer updated with new sun light settings');
             }, this.interactionDelay);
         }
@@ -1221,7 +1246,17 @@ The standard renderer will continue to work normally.`;
         if (this.originalHDRITexture) {
             // Set original HDRI as environment for both path tracing and rasterization
             this.scene.environment = this.originalHDRITexture;
-            console.log('  ✓ Set original HDRI texture for path tracer');
+
+            // Apply current rotation to scene
+            const rotationRadians = this.hdriRotation * Math.PI / 180;
+            if (this.scene.environmentRotation) {
+                this.scene.environmentRotation.set(0, rotationRadians, 0);
+            }
+            if (this.scene.backgroundRotation) {
+                this.scene.backgroundRotation.set(0, rotationRadians, 0);
+            }
+
+            console.log('  ✓ Set original HDRI texture for path tracer with rotation');
         }
 
         // Set scene and camera
@@ -1251,11 +1286,14 @@ The standard renderer will continue to work normally.`;
     disablePathTracing() {
         this.pathTracingEnabled = false;
 
-        // Restore PMREM environment for rasterization
+        // Restore PMREM environment for standard rendering
+        // (PMREM cube maps are optimized for real-time rasterization)
         if (this.pmremEnvironment) {
             this.scene.environment = this.pmremEnvironment;
+            console.log('  ✓ Restored PMREM cube map for standard rendering');
         } else if (this.currentHDRI) {
             this.scene.environment = this.currentHDRI;
+            console.log('  ✓ Restored PMREM from currentHDRI');
         }
 
         console.log('✅ Path tracing disabled');

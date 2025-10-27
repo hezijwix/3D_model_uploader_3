@@ -164,7 +164,7 @@ const ViewerConfig = {
 
     // Animation defaults
     animation: {
-        orbitEnabled: false, // Manual camera control with OrbitControls
+        orbitEnabled: true, // Manual camera control with OrbitControls (enabled by default)
         animationEnabled: false, // Master animation toggle
         animationMode: 'turntable', // 'turntable' or 'sine'
 
@@ -175,12 +175,12 @@ const ViewerConfig = {
         turntableRotationSpeed: 0.01, // Base radians per frame
 
         // Sine wave animation settings
-        sineAmplitudeX: 30, // Degrees
-        sineAmplitudeY: 30, // Degrees
-        sineAmplitudeZ: 30, // Degrees
-        sineFrequencyX: 1.0, // Hz
-        sineFrequencyY: 1.0, // Hz
-        sineFrequencyZ: 1.0 // Hz
+        sineAmplitudeX: 0, // Degrees (0-360)
+        sineAmplitudeY: 0, // Degrees (0-360)
+        sineAmplitudeZ: 0, // Degrees (0-360)
+        sineFrequencyX: 0, // Hz (0-2)
+        sineFrequencyY: 0, // Hz (0-2)
+        sineFrequencyZ: 0 // Hz (0-2)
     },
 
     // Background defaults

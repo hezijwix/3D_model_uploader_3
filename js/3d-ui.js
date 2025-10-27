@@ -128,39 +128,6 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Rotation X
-    const rotXSlider = document.getElementById('model-rot-x');
-    const rotXValue = document.getElementById('model-rot-x-value');
-    if (rotXSlider && window.viewer) {
-        rotXSlider.addEventListener('input', (e) => {
-            const value = parseFloat(e.target.value);
-            rotXValue.textContent = value.toFixed(0) + '°';
-            updateTransform();
-        });
-    }
-
-    // Rotation Y
-    const rotYSlider = document.getElementById('model-rot-y');
-    const rotYValue = document.getElementById('model-rot-y-value');
-    if (rotYSlider && window.viewer) {
-        rotYSlider.addEventListener('input', (e) => {
-            const value = parseFloat(e.target.value);
-            rotYValue.textContent = value.toFixed(0) + '°';
-            updateTransform();
-        });
-    }
-
-    // Rotation Z
-    const rotZSlider = document.getElementById('model-rot-z');
-    const rotZValue = document.getElementById('model-rot-z-value');
-    if (rotZSlider && window.viewer) {
-        rotZSlider.addEventListener('input', (e) => {
-            const value = parseFloat(e.target.value);
-            rotZValue.textContent = value.toFixed(0) + '°';
-            updateTransform();
-        });
-    }
-
     function updateTransform() {
         if (!window.viewer) return;
 
@@ -169,11 +136,8 @@ window.addEventListener('DOMContentLoaded', () => {
             x: parseFloat(posXSlider.value),
             y: parseFloat(posYSlider.value)
         };
-        const rotation = {
-            x: parseFloat(rotXSlider.value),
-            y: parseFloat(rotYSlider.value),
-            z: parseFloat(rotZSlider.value)
-        };
+        // Rotation is now handled by Camera Orbit controls
+        const rotation = { x: 0, y: 0, z: 0 };
 
         window.viewer.updateModelTransform(scale, position, rotation);
     }
