@@ -578,7 +578,13 @@ class ModelViewer {
             this.renderer.toneMappingExposure = this.hdriIntensity;
         }
 
-        // Update material env map intensities
+        // Set scene-level environment intensity (Three.js r162+)
+        // Note: Path tracer may not directly use this, but standard rendering does
+        if (this.scene.environmentIntensity !== undefined) {
+            this.scene.environmentIntensity = this.hdriIntensity;
+        }
+
+        // Update material env map intensities (affects both standard and path tracing)
         this.scene.traverse((child) => {
             if (child.isMesh && child.material) {
                 const materials = Array.isArray(child.material) ? child.material : [child.material];
@@ -613,9 +619,10 @@ class ModelViewer {
                     this.scene.environmentRotation.set(0, rotationRadians, 0);
                 }
 
-                // Use updateEnvironment() instead of setScene() for better performance
-                this.pathTracer.updateEnvironment();
-                console.log('✅ Path tracer environment updated with new HDRI settings');
+                // Reset path tracer to rebuild with new material intensities
+                // This ensures material.envMapIntensity changes take effect
+                this.pathTracer.reset();
+                console.log('✅ Path tracer reset with new HDRI intensity (material reflections)');
             }, this.interactionDelay);
         }
 
@@ -1247,6 +1254,11 @@ The standard renderer will continue to work normally.`;
             // Set original HDRI as environment for both path tracing and rasterization
             this.scene.environment = this.originalHDRITexture;
 
+            // Set scene-level environment intensity (Three.js r162+)
+            if (this.scene.environmentIntensity !== undefined) {
+                this.scene.environmentIntensity = this.hdriIntensity;
+            }
+
             // Apply current rotation to scene
             const rotationRadians = this.hdriRotation * Math.PI / 180;
             if (this.scene.environmentRotation) {
@@ -1256,7 +1268,7 @@ The standard renderer will continue to work normally.`;
                 this.scene.backgroundRotation.set(0, rotationRadians, 0);
             }
 
-            console.log('  ✓ Set original HDRI texture for path tracer with rotation');
+            console.log('  ✓ Set original HDRI texture for path tracer with rotation and intensity');
         }
 
         // Set scene and camera
