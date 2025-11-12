@@ -101,6 +101,7 @@ class ModelViewer {
         // Path Tracing
         this.pathTracer = null;
         this.pathTracingEnabled = false;
+        this.pathTracerSceneReady = false; // Track if setScene() has been called successfully
         this.pathTracingQuality = 'medium';
         this.targetSamples = 200;
         this.pathTracingPresets = {
@@ -419,9 +420,12 @@ class ModelViewer {
                     this.applyEnvironmentToModel();
                 }
 
-                // Reset path tracing if active (new environment)
-                if (this.pathTracingEnabled && this.pathTracer) {
+                // Update path tracer environment if active and initialized
+                if (this.pathTracingEnabled && this.pathTracer && this.pathTracerSceneReady) {
+                    // Only call updateEnvironment() if the path tracer has been set up with a scene
+                    this.pathTracer.updateEnvironment();
                     this.pathTracer.reset();
+                    console.log('  ✓ Path tracer environment updated for new HDRI');
                 }
 
                 console.log(`✅ HDRI loaded: ${presetName}`);
@@ -608,21 +612,11 @@ class ModelViewer {
             this.interactionTimeout = setTimeout(() => {
                 this.isInteracting = false;
                 this.scene.updateMatrixWorld(true);
-
-                // Ensure path tracer uses original equirectangular texture
-                if (this.originalHDRITexture) {
-                    this.scene.environment = this.originalHDRITexture;
+                // Use updateEnvironment() instead of setScene() for better performance
+                if (this.pathTracerSceneReady) {
+                    this.pathTracer.updateEnvironment();
+                    console.log('✅ Path tracer environment updated with new HDRI settings');
                 }
-
-                // Apply rotation to scene before updating path tracer
-                if (this.scene.environmentRotation) {
-                    this.scene.environmentRotation.set(0, rotationRadians, 0);
-                }
-
-                // Reset path tracer to rebuild with new material intensities
-                // This ensures material.envMapIntensity changes take effect
-                this.pathTracer.reset();
-                console.log('✅ Path tracer reset with new HDRI intensity (material reflections)');
             }, this.interactionDelay);
         }
 
@@ -670,8 +664,10 @@ class ModelViewer {
                 this.isInteracting = false;
                 this.scene.updateMatrixWorld(true);
                 // Use updateLights() instead of setScene() for better performance
-                this.pathTracer.updateLights();
-                console.log('✅ Path tracer updated with new sun light settings');
+                if (this.pathTracerSceneReady) {
+                    this.pathTracer.updateLights();
+                    console.log('✅ Path tracer lights updated with new sun light settings');
+                }
             }, this.interactionDelay);
         }
     }
@@ -1275,9 +1271,11 @@ The standard renderer will continue to work normally.`;
         if (this.scene && this.camera) {
             try {
                 this.pathTracer.setScene(this.scene, this.camera);
+                this.pathTracerSceneReady = true; // Mark as ready for updates
                 console.log('  ✓ Scene set for path tracing');
             } catch (error) {
                 console.error('❌ Failed to set scene:', error);
+                this.pathTracerSceneReady = false;
                 // Restore PMREM environment on failure
                 this.scene.environment = this.pmremEnvironment;
                 throw error;
@@ -1297,6 +1295,7 @@ The standard renderer will continue to work normally.`;
 
     disablePathTracing() {
         this.pathTracingEnabled = false;
+        this.pathTracerSceneReady = false; // Reset scene ready flag
 
         // Restore PMREM environment for standard rendering
         // (PMREM cube maps are optimized for real-time rasterization)
@@ -1532,15 +1531,44 @@ The standard renderer will continue to work normally.`;
 
     exportPNG() {
         console.log('📸 Exporting PNG...');
+        console.log(`  Foreground image: ${this.foregroundImage ? 'loaded' : 'none'}`);
 
         // Create temporary canvas for composite
         const exportCanvas = document.createElement('canvas');
         exportCanvas.width = this.canvas.width;
         exportCanvas.height = this.canvas.height;
-        const ctx = exportCanvas.getContext('2d');
+        const ctx = exportCanvas.getContext('2d', { alpha: true }); // Enable alpha for transparency
 
         // Render background and Three.js scene
         this.renderToCanvas(exportCanvas);
+
+        // Explicitly add foreground image to export (redundant check for debugging)
+        if (this.foregroundImage) {
+            console.log(`  ✓ Adding foreground overlay (${this.foregroundImage.width}x${this.foregroundImage.height})`);
+            const canvasAspect = exportCanvas.width / exportCanvas.height;
+            const imageAspect = this.foregroundImage.width / this.foregroundImage.height;
+
+            let drawWidth, drawHeight, offsetX, offsetY;
+
+            // Cover: fill entire canvas, may crop image
+            if (imageAspect > canvasAspect) {
+                drawHeight = exportCanvas.height;
+                drawWidth = drawHeight * imageAspect;
+                offsetX = (exportCanvas.width - drawWidth) / 2;
+                offsetY = 0;
+            } else {
+                drawWidth = exportCanvas.width;
+                drawHeight = drawWidth / imageAspect;
+                offsetX = 0;
+                offsetY = (exportCanvas.height - drawHeight) / 2;
+            }
+
+            ctx.drawImage(
+                this.foregroundImage,
+                offsetX, offsetY,
+                drawWidth, drawHeight
+            );
+        }
 
         // Convert to PNG and download
         const dataURL = exportCanvas.toDataURL('image/png');
@@ -1582,6 +1610,33 @@ The standard renderer will continue to work normally.`;
                 // Three.js handles background directly via scene.background
                 // Just copy the Three.js canvas to the composite canvas
                 compositeCtx.drawImage(this.canvas, 0, 0);
+
+                // Add foreground overlay to each frame
+                if (this.foregroundImage) {
+                    const canvasAspect = compositeCanvas.width / compositeCanvas.height;
+                    const imageAspect = this.foregroundImage.width / this.foregroundImage.height;
+
+                    let drawWidth, drawHeight, offsetX, offsetY;
+
+                    // Cover: fill entire canvas, may crop image
+                    if (imageAspect > canvasAspect) {
+                        drawHeight = compositeCanvas.height;
+                        drawWidth = drawHeight * imageAspect;
+                        offsetX = (compositeCanvas.width - drawWidth) / 2;
+                        offsetY = 0;
+                    } else {
+                        drawWidth = compositeCanvas.width;
+                        drawHeight = drawWidth / imageAspect;
+                        offsetX = 0;
+                        offsetY = (compositeCanvas.height - drawHeight) / 2;
+                    }
+
+                    compositeCtx.drawImage(
+                        this.foregroundImage,
+                        offsetX, offsetY,
+                        drawWidth, drawHeight
+                    );
+                }
 
                 requestAnimationFrame(updateComposite);
             };
