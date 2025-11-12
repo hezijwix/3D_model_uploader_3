@@ -166,7 +166,7 @@ const ViewerConfig = {
     animation: {
         orbitEnabled: true, // Manual camera control with OrbitControls (enabled by default)
         animationEnabled: false, // Master animation toggle
-        animationMode: 'turntable', // 'turntable' or 'sine'
+        animationMode: 'turntable', // 'turntable', 'sine', or 'light-rotation'
 
         // Turntable animation settings
         turntableSpeedX: 0.0, // -2 to 2
@@ -180,7 +180,10 @@ const ViewerConfig = {
         sineAmplitudeZ: 0, // Degrees (0-360)
         sineFrequencyX: 0, // Hz (0-2)
         sineFrequencyY: 0, // Hz (0-2)
-        sineFrequencyZ: 0 // Hz (0-2)
+        sineFrequencyZ: 0, // Hz (0-2)
+
+        // Light rotation animation settings
+        lightAnimationSpeed: 1.0 // -5 to 5 (degrees per frame, affects both HDRI and sun)
     },
 
     // Background defaults

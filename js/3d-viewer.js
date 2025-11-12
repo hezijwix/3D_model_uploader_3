@@ -81,6 +81,11 @@ class ModelViewer {
         this.sineFrequencyZ = ViewerConfig.animation.sineFrequencyZ;
         this.sineTime = 0; // Time accumulator for sine wave
 
+        // Light rotation animation (HDRI + Sun)
+        this.lightAnimationSpeed = ViewerConfig.animation.lightAnimationSpeed;
+        this.hdriRotationBeforeAnimation = null; // Store HDRI rotation before animation starts
+        this.sunAzimuthBeforeAnimation = null; // Store sun azimuth before animation starts
+
         this.animationFrameId = null;
 
         // Store initial rotation state for animation reset
@@ -1351,22 +1356,38 @@ The standard renderer will continue to work normally.`;
     setAnimationEnabled(enabled) {
         if (enabled && !this.animationEnabled) {
             // Starting animation - save current rotation state
-            if (this.modelContainer) {
+            if (this.animationMode === 'light-rotation') {
+                // Save HDRI rotation and sun azimuth for light rotation mode
+                this.hdriRotationBeforeAnimation = this.hdriRotation;
+                this.sunAzimuthBeforeAnimation = this.sunAzimuth;
+                console.log('💾 Saved light rotation state before animation (HDRI + Sun)');
+            } else if (this.modelContainer) {
+                // Save model rotation for other modes
                 this.rotationBeforeAnimation = {
                     x: this.modelContainer.rotation.x,
                     y: this.modelContainer.rotation.y,
                     z: this.modelContainer.rotation.z
                 };
                 this.sineTime = 0; // Reset sine wave time
-                console.log('💾 Saved rotation state before animation');
+                console.log('💾 Saved model rotation state before animation');
             }
         } else if (!enabled && this.animationEnabled) {
             // Stopping animation - restore original rotation
-            if (this.modelContainer && this.rotationBeforeAnimation) {
+            if (this.animationMode === 'light-rotation' && this.hdriRotationBeforeAnimation !== null) {
+                // Restore HDRI rotation and sun azimuth
+                this.hdriRotation = this.hdriRotationBeforeAnimation;
+                this.sunAzimuth = this.sunAzimuthBeforeAnimation;
+                this.updateHDRISettings();
+                this.updateSunLightPosition();
+                console.log('🔄 Restored light rotation state after animation (HDRI + Sun)');
+                this.hdriRotationBeforeAnimation = null;
+                this.sunAzimuthBeforeAnimation = null;
+            } else if (this.modelContainer && this.rotationBeforeAnimation) {
+                // Restore model rotation
                 this.modelContainer.rotation.x = this.rotationBeforeAnimation.x;
                 this.modelContainer.rotation.y = this.rotationBeforeAnimation.y;
                 this.modelContainer.rotation.z = this.rotationBeforeAnimation.z;
-                console.log('🔄 Restored rotation state after animation');
+                console.log('🔄 Restored model rotation state after animation');
                 this.rotationBeforeAnimation = null;
             }
         }
@@ -1405,9 +1426,61 @@ The standard renderer will continue to work normally.`;
             this.orbitControls.update();
         }
 
-        // Animation (turntable or sine wave)
-        if (this.animationEnabled && this.currentModel && this.rotationBeforeAnimation) {
-            if (this.animationMode === 'turntable') {
+        // Animation (turntable, sine wave, or light rotation)
+        if (this.animationEnabled) {
+            if (this.animationMode === 'light-rotation') {
+                // Light rotation animation - continuous rotation of HDRI environment and sun light
+                if (this.lightAnimationSpeed !== 0) {
+                    // Update HDRI rotation
+                    this.hdriRotation += this.lightAnimationSpeed;
+
+                    // Wrap HDRI rotation to 0-360 range
+                    if (this.hdriRotation >= 360) {
+                        this.hdriRotation -= 360;
+                    } else if (this.hdriRotation < 0) {
+                        this.hdriRotation += 360;
+                    }
+
+                    // Update sun azimuth (same rotation)
+                    this.sunAzimuth += this.lightAnimationSpeed;
+
+                    // Wrap sun azimuth to 0-360 range
+                    if (this.sunAzimuth >= 360) {
+                        this.sunAzimuth -= 360;
+                    } else if (this.sunAzimuth < 0) {
+                        this.sunAzimuth += 360;
+                    }
+
+                    // Update environment rotation immediately (no debounce during animation)
+                    const rotationRadians = this.hdriRotation * Math.PI / 180;
+                    if (this.scene.environmentRotation) {
+                        this.scene.environmentRotation.set(0, rotationRadians, 0);
+                    }
+                    if (this.scene.backgroundRotation) {
+                        this.scene.backgroundRotation.set(0, rotationRadians, 0);
+                    }
+
+                    // Update sun light position
+                    this.updateSunLightPosition();
+
+                    // Update UI slider values
+                    const hdriRotationSlider = document.getElementById('hdri-rotation');
+                    const hdriRotationValue = document.getElementById('hdri-rotation-value');
+                    if (hdriRotationSlider && hdriRotationValue) {
+                        hdriRotationSlider.value = this.hdriRotation;
+                        hdriRotationValue.textContent = this.hdriRotation.toFixed(0) + '°';
+                    }
+
+                    const sunAzimuthSlider = document.getElementById('sun-azimuth');
+                    const sunAzimuthValue = document.getElementById('sun-azimuth-value');
+                    if (sunAzimuthSlider && sunAzimuthValue) {
+                        sunAzimuthSlider.value = this.sunAzimuth;
+                        sunAzimuthValue.textContent = this.sunAzimuth.toFixed(0) + '°';
+                    }
+
+                    sceneChanged = true;
+                }
+            } else if (this.animationMode === 'turntable' && this.currentModel && this.rotationBeforeAnimation) {
                 // Turntable animation - continuous rotation
                 const baseSpeed = ViewerConfig.animation.turntableRotationSpeed;
 

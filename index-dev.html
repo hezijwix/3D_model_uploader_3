@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Model Viewer - Professional Renders</title>
+    <title>3D Model Viewer - DEV (Path Tracing Enabled)</title>
 
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -81,6 +81,11 @@
     </script>
 </head>
 <body>
+    <!-- DEV Mode Banner -->
+    <div style="background: linear-gradient(135deg, #ff6464 0%, #ff8c42 100%); color: white; padding: 12px; text-align: center; font-weight: 600; font-size: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+        🔬 DEVELOPMENT MODE - Path Tracing Enabled | <a href="index.html" style="color: white; text-decoration: underline;">Switch to Production Version</a>
+    </div>
+
     <!-- Header -->
     <div class="header">
         <div class="header-title">3D Model Viewer</div>
@@ -267,11 +272,11 @@
                 </div>
             </div>
 
-            <!-- PATH TRACING SECTION - HIDDEN (Available in index-dev.html) -->
-            <!--
+            <!-- PATH TRACING SECTION - DEV ONLY -->
             <div class="controls-section section-with-divider">
-                <h4>Path Tracing</h4>
+                <h4>Path Tracing <span style="background: #ff6464; color: white; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: 700; margin-left: 8px;">DEV</span></h4>
 
+                <!-- Enable Path Tracing -->
                 <div style="margin-top: 8px;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                         <input type="checkbox" id="pathtracing-enabled" style="cursor: pointer;">
@@ -282,6 +287,7 @@
                     </div>
                 </div>
 
+                <!-- Quality Preset -->
                 <div class="frame-control-row" style="margin-top: 16px;">
                     <label for="pathtracing-quality">Quality</label>
                 </div>
@@ -292,6 +298,7 @@
                     <option value="ultra">Ultra (20 bounces, 5000 samples)</option>
                 </select>
 
+                <!-- Samples Counter -->
                 <div id="pathtracing-stats" style="display: none; margin-top: 16px; padding: 12px; background: rgba(255,255,255,0.05); border-radius: 4px;">
                     <div style="font-size: 12px; color: var(--text-color-subtle); margin-bottom: 4px;">
                         Rendering Progress
@@ -306,13 +313,13 @@
                     </div>
                 </div>
 
+                <!-- WebGL 2.0 Warning (hidden by default) -->
                 <div id="pathtracing-warning" style="display: none; margin-top: 12px; padding: 8px; background: rgba(255, 100, 100, 0.1); border-left: 3px solid #ff6464; border-radius: 4px;">
                     <div style="font-size: 11px; color: #ff6464;">
                         ⚠️ Path tracing requires WebGL 2.0 support
                     </div>
                 </div>
             </div>
-            -->
 
             <!-- ANIMATION SECTION -->
             <div class="controls-section section-with-divider">
@@ -344,7 +351,6 @@
                 <select id="animation-mode">
                     <option value="turntable">Turntable</option>
                     <option value="sine">Sine Wave</option>
-                    <option value="light-rotation">Light Rotation</option>
                 </select>
 
                 <!-- Turntable Controls (shown when mode = turntable) -->
@@ -373,20 +379,6 @@
                         <span id="turntable-speed-z-value" style="color: var(--text-color-subtle);">0.0</span>
                     </div>
                     <input type="range" id="turntable-speed-z" min="-2" max="2" step="0.1" value="0" class="slider">
-                </div>
-
-                <!-- Light Rotation Controls (shown when mode = light-rotation) -->
-                <div id="light-rotation-controls" style="display: none;">
-                    <div style="font-size: 11px; color: var(--text-color-subtle); margin-top: 8px;">
-                        Continuous rotation of HDRI environment and sun light
-                    </div>
-
-                    <!-- Light Rotation Speed -->
-                    <div class="frame-control-row" style="margin-top: 12px;">
-                        <label for="light-anim-speed">Rotation Speed</label>
-                        <span id="light-anim-speed-value" style="color: var(--text-color-subtle);">1.0</span>
-                    </div>
-                    <input type="range" id="light-anim-speed" min="-5" max="5" step="0.1" value="1" class="slider">
                 </div>
 
                 <!-- Sine Wave Controls (shown when mode = sine) -->

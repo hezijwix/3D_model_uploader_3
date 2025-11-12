@@ -388,6 +388,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const animationMode = document.getElementById('animation-mode');
     const turntableControls = document.getElementById('turntable-controls');
     const sineControls = document.getElementById('sine-controls');
+    const lightRotationControls = document.getElementById('light-rotation-controls');
 
     if (animationMode && window.viewer) {
         animationMode.addEventListener('change', (e) => {
@@ -395,15 +396,32 @@ window.addEventListener('DOMContentLoaded', () => {
             window.viewer.setAnimationMode(mode);
 
             // Show/hide appropriate controls
-            if (turntableControls && sineControls) {
+            if (turntableControls && sineControls && lightRotationControls) {
                 if (mode === 'turntable') {
                     turntableControls.style.display = 'block';
                     sineControls.style.display = 'none';
+                    lightRotationControls.style.display = 'none';
                 } else if (mode === 'sine') {
                     turntableControls.style.display = 'none';
                     sineControls.style.display = 'block';
+                    lightRotationControls.style.display = 'none';
+                } else if (mode === 'light-rotation') {
+                    turntableControls.style.display = 'none';
+                    sineControls.style.display = 'none';
+                    lightRotationControls.style.display = 'block';
                 }
             }
+        });
+    }
+
+    // Light Rotation Animation Speed
+    const lightAnimSpeed = document.getElementById('light-anim-speed');
+    const lightAnimSpeedValue = document.getElementById('light-anim-speed-value');
+    if (lightAnimSpeed && window.viewer) {
+        lightAnimSpeed.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            lightAnimSpeedValue.textContent = value.toFixed(1);
+            window.viewer.lightAnimationSpeed = value;
         });
     }
 
